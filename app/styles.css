@@ -141,3 +141,48 @@ td.num, th.num { text-align: right; }
 .empty { text-align: center; padding: 50px 20px; color: var(--muted); }
 .empty .big { font-size: 42px; margin-bottom: 10px; }
 hr.sep { border: none; border-top: 1px solid var(--line); margin: 16px 0; }
+
+/* ---- Gesamtansicht (Steckbrief-Overlay) ---- */
+.overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.6);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 30px 16px; overflow-y: auto; z-index: 60;
+}
+.modal {
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow); max-width: 760px; width: 100%; padding: 0;
+}
+.modal-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 14px 18px; border-bottom: 1px solid var(--line); position: sticky; top: 0;
+  background: var(--panel); border-radius: var(--radius) var(--radius) 0 0;
+}
+.modal-head h2 { margin: 0; font-size: 18px; }
+.modal-body { padding: 18px; }
+.sheet-section { margin-bottom: 18px; }
+.sheet-section h3 {
+  margin: 0 0 8px; font-size: 12px; letter-spacing: .6px; text-transform: uppercase;
+  color: var(--accent-2); border-bottom: 1px solid var(--line); padding-bottom: 4px;
+}
+.kv { display: grid; grid-template-columns: 150px 1fr; gap: 4px 12px; font-size: 14px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; }
+.sheet-section table { font-size: 13px; }
+
+/* Button-Variante: dezent */
+.btn-subtle {
+  background: transparent; border: 1px dashed var(--line); color: var(--muted);
+}
+.btn-subtle:hover { border-style: solid; border-color: var(--accent); color: var(--ink); }
+
+/* Druck: nur den Steckbrief zeigen */
+@media print {
+  body > *:not(.overlay) { display: none !important; }
+  .overlay { position: static; background: none; padding: 0; display: block; overflow: visible; }
+  .modal { box-shadow: none; border: none; max-width: 100%; }
+  .modal-head { position: static; border-bottom: 1px solid #000; }
+  .no-print { display: none !important; }
+  body { background: #fff; color: #000; }
+  .sheet-section h3 { color: #000; }
+  .kv dt { color: #333; }
+}

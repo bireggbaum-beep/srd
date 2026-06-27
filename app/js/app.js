@@ -346,11 +346,13 @@
       '<div class="muted">' + esc(c.volk + " " + c.klasse + (c.unterklasse ? " · " + c.unterklasse : "") + (c.heldenklasse ? " · " + c.heldenklasse : "")) +
       ' · Stufe ' + c.stufe + '</div></div>'));
     var ha = h('<div class="inline"></div>');
+    var bGesamt = h('<button class="btn btn-subtle btn-sm" title="Alle Infos auf einen Blick">📋 Gesamtansicht</button>');
+    bGesamt.onclick = function () { openGesamt(c); };
     var bExp = h('<button class="btn">Export JSON</button>');
     bExp.onclick = function () { S.exportChar(c); toast(c.id + ".json heruntergeladen — ins Repo committen."); };
     var bDel = h('<button class="btn btn-danger">Löschen</button>');
     bDel.onclick = function () { if (confirm("„" + c.name + "“ wirklich löschen? (Export vorher empfohlen)")) { S.remove(c.id); toast("Gelöscht."); go("roster"); } };
-    ha.appendChild(bExp); ha.appendChild(bDel);
+    ha.appendChild(bGesamt); ha.appendChild(bExp); ha.appendChild(bDel);
     head.appendChild(ha);
     wrap.appendChild(head);
 
@@ -702,6 +704,107 @@
     box.appendChild(h('<div class="help" style="margin-top:12px">Tipp: „Export JSON“ lädt den Charakter herunter; committe ihn ins Repo, um jeden Aufstieg dauerhaft zu versionieren.</div>'));
     return box;
   }
+
+  // ---- Gesamtansicht (Steckbrief, alles auf einen Blick) -------------------
+  function openGesamt(c) {
+    var kw = E.kampfwerte(c);
+    var caps = E.caps(c);
+    var dash = '<span class="muted">—</span>';
+
+    function section(titel, inner) {
+      return '<div class="sheet-section"><h3>' + titel + '</h3>' + inner + '</div>';
+    }
+    function kv(pairs) {
+      return '<dl class="kv">' + pairs.map(function (p) {
+        return '<dt>' + p[0] + '</dt><dd>' + (p[1] === "" || p[1] == null ? dash : p[1]) + '</dd>';
+      }).join("") + '</dl>';
+    }
+
+    // Stammdaten
+    var stamm = kv([
+      ["Name", esc(c.name)],
+      ["Geschlecht", esc(c.geschlecht)],
+      ["Volk", esc(c.volk)],
+      ["Klasse", esc(c.klasse + (c.unterklasse ? " · " + c.unterklasse : ""))],
+      ["Heldenklasse", c.heldenklasse ? esc(c.heldenklasse) : ""],
+      ["Stufe", c.stufe],
+      ["Erfahrung", c.ep + " EP"],
+      ["Offen", c.konten.lpOffen + " LP · " + c.konten.tpOffen + " TP"]
+    ]);
+
+    // Attribute & Eigenschaften
+    var attrRows = ATTR.map(function (a) {
+      var eigCells = a.eigenschaften.map(function (eid) {
+        return eigKurz(eid) + " <b>" + c.eigenschaften[eid] + "</b> <span class='muted'>/" + caps[eid] + "</span>";
+      }).join(" &nbsp; ");
+      return '<tr><td>' + a.name + ' (' + a.kurz + ')</td><td class="num"><b>' + c.attribute[a.id] + '</b></td><td>' + eigCells + '</td></tr>';
+    }).join("");
+    var attr = '<table><tr><th>Attribut</th><th class="num">Wert</th><th>Eigenschaften (Wert / Cap)</th></tr>' + attrRows + '</table>';
+
+    // Kampfwerte
+    var kwDefs = [
+      ["Lebenskraft", kw.lebenskraft], ["Abwehr", kw.abwehr + " (PA " + kw._pa + ")"],
+      ["Initiative", kw.initiative], ["Laufen", kw.laufen + " m"],
+      ["Schlagen", kw.schlagen], ["Schießen", kw.schiessen]
+    ];
+    if (E.istZauberwirker(c)) { kwDefs.push(["Zaubern", kw.zaubern + " (+ZB)"]); kwDefs.push(["Zielzauber", kw.zielzauber + " (+ZB)"]); }
+    var kampf = kv(kwDefs.map(function (d) { return [d[0], d[1]]; }));
+
+    // Ausrüstung
+    var ruest = (c.ausruestung.ruestungen || []).map(function (rn) {
+      var r = E.findeRuestung(rn); return esc(rn) + (r ? " (PA " + r.pa + ")" : "");
+    }).join(", ");
+    var ausr = kv([
+      ["Nahkampfwaffe", c.ausruestung.nahwaffe ? esc(c.ausruestung.nahwaffe) + waffenWB(c.ausruestung.nahwaffe) : ""],
+      ["Fernkampfwaffe", c.ausruestung.fernwaffe ? esc(c.ausruestung.fernwaffe) + waffenWB(c.ausruestung.fernwaffe) : ""],
+      ["Rüstung & Schild", ruest],
+      ["Inventar", (c.ausruestung.inventar || []).map(esc).join(", ")]
+    ]);
+
+    // Talente / Zauber / Volk / Sprachen
+    var talente = c.talente.length ? c.talente.map(function (t) { return '<span class="pill">' + esc(t.name) + ' ' + roman(t.rang) + '</span>'; }).join("") : dash;
+    var zauber = c.zauber.length ? c.zauber.map(function (z) { return '<span class="pill">' + esc(z.name) + ' (St. ' + z.stufe + ')</span>'; }).join("") : dash;
+    var voelk = (c.volksfaehigkeiten && c.volksfaehigkeiten.length) ? c.volksfaehigkeiten.map(function (f) { return '<span class="pill">' + esc(f) + '</span>'; }).join("") : dash;
+    var sprachen = c.sprachen.length ? c.sprachen.map(esc).join(", ") : "";
+    var schrift = (c.schriftzeichen && c.schriftzeichen.length) ? c.schriftzeichen.map(esc).join(", ") : "";
+    var meta = kv([["Volksfähigkeiten", voelk], ["Sprachen", sprachen], ["Schriftzeichen", schrift]]);
+
+    var body =
+      section("Stammdaten", stamm) +
+      section("Attribute & Eigenschaften", attr) +
+      section("Kampfwerte", kampf + (E.istZauberwirker(c) ? '<div class="help">ZB = Zauberbonus des aktiven Spruchs, kommt situativ dazu.</div>' : "")) +
+      section("Ausrüstung", ausr) +
+      section("Talente", '<div>' + talente + '</div>') +
+      (E.istZauberwirker(c) ? section("Zauber", '<div>' + zauber + '</div>') : "") +
+      section("Volk, Sprachen & Schrift", meta) +
+      (c.notizen ? section("Notizen", '<div>' + esc(c.notizen).replace(/\n/g, "<br>") + '</div>') : "");
+
+    var overlay = h('<div class="overlay"></div>');
+    var modal = h('<div class="modal" role="dialog" aria-label="Gesamtansicht"></div>');
+    var head = h('<div class="modal-head"><h2>📋 ' + esc(c.name) + ' <span class="muted" style="font-weight:400;font-size:14px">· Steckbrief</span></h2></div>');
+    var headBtns = h('<div class="inline no-print"></div>');
+    var bPrint = h('<button class="btn btn-sm">Drucken</button>');
+    bPrint.onclick = function () { window.print(); };
+    var bClose = h('<button class="btn btn-sm">Schließen ✕</button>');
+    bClose.onclick = closeGesamt;
+    headBtns.appendChild(bPrint); headBtns.appendChild(bClose);
+    head.appendChild(headBtns);
+    modal.appendChild(head);
+    modal.appendChild(h('<div class="modal-body">' + body + '</div>'));
+    overlay.appendChild(modal);
+
+    overlay.addEventListener("click", function (ev) { if (ev.target === overlay) closeGesamt(); });
+    document.addEventListener("keydown", escClose);
+    document.body.appendChild(overlay);
+    overlay.id = "gesamt-overlay";
+  }
+  function escClose(ev) { if (ev.key === "Escape") closeGesamt(); }
+  function closeGesamt() {
+    var o = document.getElementById("gesamt-overlay");
+    if (o) o.remove();
+    document.removeEventListener("keydown", escClose);
+  }
+  function waffenWB(name) { var w = E.findeWaffe(name); return w ? " (WB " + (w.wb >= 0 ? "+" : "") + w.wb + ")" : ""; }
 
   // ---- Diverses ------------------------------------------------------------
   function roman(n) { return ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"][n] || ("×" + n); }
