@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dungeonslayers — Charakterverwaltung (DS4)</title>
+  <meta name="description" content="Kampagnen-Verwaltungstool für Dungeonslayers DS4: regeltreuer Aufstiegs-Assistent, mehrere Charaktere, offline." />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <h1 class="brand" id="nav-home">⚔️ Dungeonslayers <span>Charakterverwaltung</span></h1>
+      <nav class="topnav">
+        <button class="btn" id="nav-roster">Gruppe</button>
+        <button class="btn btn-primary" id="nav-create">+ Neuer Charakter</button>
+        <button class="btn" id="nav-import">Import</button>
+        <input type="file" id="import-file" accept="application/json" hidden />
+      </nav>
+    </div>
+  </header>
+
+  <main id="app" class="container"><!-- gerendert von app.js --></main>
+
+  <footer class="footer">
+    <p>
+      Regeldaten © Christian Kennig, <a href="https://github.com/RoninEighty/Dungeonslayers" target="_blank" rel="noopener">DS4 SRD+</a>
+      unter CC BY-NC-SA 4.0. Gerenderte Referenz: <a href="https://immersieg.de" target="_blank" rel="noopener">immersieg.de</a>.
+    </p>
+    <p class="muted">Statisch · offline-fähig · kein Backend. Charaktere als JSON exportieren und ins Repo committen = versionierte Kampagnen-Historie.</p>
+  </footer>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <!-- Reihenfolge wichtig: Daten -> Engine -> Store -> App -->
+  <script src="data/regeln.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,8 +1,10 @@
-title: Just the Docs Template
-description: A starter template for a Jeykll site using the Just the Docs theme!
+title: Dungeonslayers — Charakterverwaltung (DS4)
+description: Kampagnen-Verwaltungstool für Dungeonslayers DS4 — regeltreuer Aufstiegs-Assistent, statisch & offline.
 theme: just-the-docs
 
 url: https://bireggbaum-beep.github.io
 
 aux_links:
-  Template Repository: https://https://github.com/bireggbaum-beep/srd
+  Repository: https://github.com/bireggbaum-beep/srd
+
+# Der App-Ordner enthält statisches HTML/JS und wird von Jekyll unverändert kopiert.
