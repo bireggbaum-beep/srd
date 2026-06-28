@@ -289,13 +289,51 @@
   }
 
   // ---- Zauber --------------------------------------------------------------
-  function zauberLernen(char, name, stufe) {
-    char.zauber.push({ name: name, stufe: stufe });
-    log(char, "Zauber gelernt", name + " (Stufe " + stufe + ")");
-    return char;
+  // Zauber-Definition (aus DS_REGELN.zauber) per Name finden.
+  function zauberDef(name) {
+    var Z = R.zauber;
+    if (!Z) return null;
+    return Z.filter(function (z) { return z.name === name; })[0] || null;
+  }
+  // Zugangsstufe (= Spruchstufe) eines Spruchs für die Unterklasse des Charakters.
+  function zauberZugangsstufe(char, z) {
+    if (!z || !z.zugang || !char.unterklasse) return undefined;
+    return z.zugang[char.unterklasse];
+  }
+  // Kumuliertes Lern-Budget: pro Stufe gibt es Budget = Stufe, summiert also
+  // Stufe·(Stufe+1)/2. Gelernte Sprüche kosten ihre Stufensumme.
+  function zauberBudgetGesamt(char) {
+    var s = char.stufe;
+    return s * (s + 1) / 2;
   }
   function zauberStufensumme(char) {
     return (char.zauber || []).reduce(function (a, z) { return a + (z.stufe || 0); }, 0);
+  }
+  function zauberRest(char) {
+    return zauberBudgetGesamt(char) - zauberStufensumme(char);
+  }
+  // Kann der Charakter diesen Zauber lernen?
+  function zauberVerfuegbar(char, z) {
+    if (!istZauberwirker(char)) return { ok: false, grund: "Kein Zauberwirker" };
+    var st = zauberZugangsstufe(char, z);
+    if (st == null) return { ok: false, grund: (char.unterklasse || "Klasse") + " hat keinen Zugang" };
+    if (char.stufe < st) return { ok: false, grund: "Erst ab Stufe " + st };
+    if ((char.zauber || []).some(function (x) { return x.name === z.name; })) return { ok: false, grund: "Bereits gelernt" };
+    if (st > zauberRest(char)) return { ok: false, grund: "Budget reicht nicht (Rest " + zauberRest(char) + ", Spruch Stufe " + st + ")" };
+    return { ok: true, stufe: st };
+  }
+
+  // Mit Zauberdaten wird Zugang & Budget geprüft; ohne Daten frei eintragbar.
+  function zauberLernen(char, name, stufe) {
+    var def = zauberDef(name);
+    if (def) {
+      var p = zauberVerfuegbar(char, def);
+      if (!p.ok) throw new Error(p.grund);
+      stufe = p.stufe;
+    }
+    char.zauber.push({ name: name, stufe: stufe });
+    log(char, "Zauber gelernt", name + " (Stufe " + stufe + ")");
+    return char;
   }
 
   // ---- Log -----------------------------------------------------------------
@@ -427,6 +465,11 @@
     naechsteStufe: naechsteStufe,
     epEintragen: epEintragen,
     zauberBudget: zauberBudget,
+    zauberDef: zauberDef,
+    zauberZugangsstufe: zauberZugangsstufe,
+    zauberBudgetGesamt: zauberBudgetGesamt,
+    zauberRest: zauberRest,
+    zauberVerfuegbar: zauberVerfuegbar,
     zauberStufensumme: zauberStufensumme,
     talentLernen: talentLernen,
     talentDef: talentDef,

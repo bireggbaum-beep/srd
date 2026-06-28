@@ -585,27 +585,7 @@
 
     // Zauber (Zauberwirker)
     if (E.istZauberwirker(c)) {
-      var pz = h('<div class="panel"></div>');
-      pz.appendChild(h('<h2>Zauber <span class="muted">(Budget pro Stufe = ' + E.zauberBudget(c.stufe) + ')</span> <a class="deeplink" href="' + R.deeplinks.zauber + '" target="_blank" rel="noopener">↗ Regeln</a></h2>'));
-      if (c.zauber.length) {
-        pz.appendChild(h('<div>' + c.zauber.map(function (z) { return '<span class="pill">' + esc(z.name) + ' (St. ' + z.stufe + ')</span>'; }).join("") + '</div>'));
-        pz.appendChild(h('<div class="help">Gelernte Stufensumme gesamt: ' + E.zauberStufensumme(c) + '</div>'));
-      } else {
-        pz.appendChild(h('<div class="muted">Noch keine Zauber gelernt.</div>'));
-      }
-      var zRow = h('<div class="inline" style="margin-top:10px"></div>');
-      var zName = h('<input type="text" placeholder="Zaubername" style="max-width:200px"/>');
-      var zStufe = h('<input type="number" min="1" value="1" style="max-width:80px" title="Spruchstufe"/>');
-      var zBtn = h('<button class="btn">Zauber hinzufügen</button>');
-      zBtn.onclick = function () {
-        var nm = zName.value.trim(); var st = parseInt(zStufe.value, 10) || 1;
-        if (!nm) { toast("Zaubername eingeben."); return; }
-        E.zauberLernen(c, nm, st); S.upsert(c); toast("Zauber „" + nm + "“ hinzugefügt."); render();
-      };
-      zRow.appendChild(zName); zRow.appendChild(zStufe); zRow.appendChild(zBtn);
-      pz.appendChild(zRow);
-      pz.appendChild(h('<div class="help">Zauber lernen kostet weder LP noch TP; pro Stufe ist die Stufensumme neuer Sprüche ≤ Charakterstufe (SRD). Budget-Prüfung wird mit der Zauberliste ergänzt.</div>'));
-      box.appendChild(pz);
+      box.appendChild(tabZauber(c));
     }
 
     // Wiring EP/HK
@@ -871,6 +851,94 @@
     var o = document.getElementById("talent-overlay");
     if (o) o.remove();
     document.removeEventListener("keydown", escCloseTalent);
+  }
+
+  // ---- Zauber-Panel (datengetrieben, mit klickbarer Beschreibung) ----------
+  function tabZauber(c) {
+    var hatDaten = !!(R.zauber && R.zauber.length);
+    var pz = h('<div class="panel"></div>');
+    var rest = E.zauberRest(c), gesamt = E.zauberBudgetGesamt(c);
+    pz.appendChild(h('<h2>Zauber <span class="muted">(' + c.unterklasse + ' · Budget ' + E.zauberStufensumme(c) + '/' + gesamt + ')</span> ' +
+      '<a class="deeplink" href="' + R.deeplinks.zauber + '" target="_blank" rel="noopener">↗ Regeln</a></h2>'));
+
+    if (c.zauber.length) {
+      var tt = h('<table></table>');
+      tt.appendChild(h('<tr><th>Zauber</th><th class="num">Stufe</th><th>Art</th><th></th></tr>'));
+      c.zauber.slice().sort(function (a, b) { return (a.stufe || 0) - (b.stufe || 0); }).forEach(function (z) {
+        var def = hatDaten ? E.zauberDef(z.name) : null;
+        var tr = h('<tr></tr>');
+        var nameCell = h('<td></td>');
+        if (def) { var lk = h('<a style="cursor:pointer">' + esc(z.name) + ' ℹ</a>'); lk.onclick = function () { openZauber(def, c); }; nameCell.appendChild(lk); }
+        else nameCell.textContent = z.name;
+        tr.appendChild(nameCell);
+        tr.appendChild(h('<td class="num">' + (z.stufe || "?") + '</td>'));
+        tr.appendChild(h('<td>' + (def ? esc(def.art) : "—") + '</td>'));
+        var act = h('<td class="right"></td>');
+        var del = h('<button class="btn btn-sm" title="Vergessen">✕</button>');
+        del.onclick = function () { c.zauber = c.zauber.filter(function (x) { return x.name !== z.name; }); E.log(c, "Zauber vergessen", z.name); S.upsert(c); render(); };
+        act.appendChild(del); tr.appendChild(act);
+        tt.appendChild(tr);
+      });
+      pz.appendChild(tt);
+    } else {
+      pz.appendChild(h('<div class="muted">Noch keine Zauber gelernt.</div>'));
+    }
+
+    if (!hatDaten) return pz;
+
+    pz.appendChild(h('<h3>Neuen Zauber lernen <span class="muted">(kostet keine LP/TP · Rest-Budget ' + rest + ')</span></h3>'));
+    var lernbar = R.zauber.filter(function (z) { return E.zauberVerfuegbar(c, z).ok; });
+    if (!lernbar.length) {
+      pz.appendChild(h('<div class="muted">Derzeit keine weiteren Sprüche verfügbar (Zugangsstufe/Budget).</div>'));
+      return pz;
+    }
+    var sel = h('<select style="max-width:340px"></select>');
+    lernbar.forEach(function (z) {
+      var st = E.zauberZugangsstufe(c, z);
+      sel.appendChild(h('<option value="' + esc(z.name) + '">' + esc(z.name) + ' — Stufe ' + st + ' (' + esc(z.art) + ')</option>'));
+    });
+    var descBox = h('<div class="help" style="margin:8px 0;min-height:1.2em"></div>');
+    var infoBtn = h('<button class="btn btn-sm btn-subtle">ℹ Beschreibung</button>');
+    var learnBtn = h('<button class="btn btn-primary btn-sm">Lernen</button>');
+    function refreshDesc() { var z = E.zauberDef(sel.value); descBox.textContent = z ? (z.art + " · ZB " + z.zb + " · " + z.beschreibung) : ""; }
+    sel.addEventListener("change", refreshDesc);
+    infoBtn.onclick = function () { var z = E.zauberDef(sel.value); if (z) openZauber(z, c); };
+    learnBtn.onclick = function () { try { E.zauberLernen(c, sel.value); S.upsert(c); toast("Zauber „" + sel.value + "“ gelernt."); render(); } catch (e) { toast(e.message); } };
+    var row = h('<div class="inline" style="margin-top:6px;flex-wrap:wrap"></div>');
+    row.appendChild(sel); row.appendChild(infoBtn); row.appendChild(learnBtn);
+    pz.appendChild(row); pz.appendChild(descBox);
+    refreshDesc();
+    return pz;
+  }
+
+  function openZauber(z, c) {
+    var zugaenge = Object.keys(z.zugang || {}).map(function (k) {
+      return '<span class="pill">' + esc(k) + ' ' + z.zugang[k] + '</span>';
+    }).join("") || '<span class="muted">—</span>';
+    var attrs = [["Art", z.art], ["ZB", z.zb], ["Dauer", z.dauer], ["Distanz", z.distanz], ["Abklingzeit", z.abklingzeit], ["Preis", z.preis]]
+      .filter(function (a) { return a[1]; })
+      .map(function (a) { return '<dt>' + a[0] + '</dt><dd>' + esc(a[1]) + '</dd>'; }).join("");
+    var overlay = h('<div class="overlay"></div>');
+    var modal = h('<div class="modal" style="max-width:560px"></div>');
+    var head = h('<div class="modal-head"><h2>' + esc(z.name) + '</h2></div>');
+    var hb = h('<div class="inline no-print"></div>');
+    hb.appendChild(h('<a class="btn btn-sm" href="' + z.ref + '" target="_blank" rel="noopener">↗ Regeln</a>'));
+    var close = h('<button class="btn btn-sm">Schließen ✕</button>'); close.onclick = closeZauber;
+    hb.appendChild(close); head.appendChild(hb); modal.appendChild(head);
+    var body = '<div class="sheet-section"><dl class="kv">' + attrs + '</dl>' +
+      '<div style="white-space:pre-line;margin:14px 0">' + esc(z.beschreibung) + '</div>' +
+      '<h3>Zugangsstufen</h3><div>' + zugaenge + '</div></div>';
+    modal.appendChild(h('<div class="modal-body">' + body + '</div>'));
+    overlay.appendChild(modal);
+    overlay.addEventListener("click", function (ev) { if (ev.target === overlay) closeZauber(); });
+    document.addEventListener("keydown", escCloseZauber);
+    document.body.appendChild(overlay); overlay.id = "zauber-overlay";
+  }
+  function escCloseZauber(ev) { if (ev.key === "Escape") closeZauber(); }
+  function closeZauber() {
+    var o = document.getElementById("zauber-overlay");
+    if (o) o.remove();
+    document.removeEventListener("keydown", escCloseZauber);
   }
 
   // ---- Gesamtansicht (Steckbrief, alles auf einen Blick) -------------------
