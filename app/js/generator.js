@@ -170,23 +170,39 @@
   // Gibt offene LP aus: stark fokussiert auf die Klassenwerte, HÄ/LK für
   // Überlebensfähigkeit, Rest als Füller. Engine-Prüfung -> nie über Cap.
   function verteileLernpunkte(char) {
-    var ziele = ["st", "hae", "be", "ge", "ve", "au", "lk"];
     var pref = KLASSEN_EIG[char.klasse] || [];
+    // ~30 % des LP-Budgets sind für Überleben reserviert (Lebenskraft, Kosten 1
+    // = effizienteste HP), damit kein Charakter zur Glaskanone wird.
+    var budget = char.konten.lpOffen;
+    var survivalReserve = Math.round(budget * 0.30);
+
+    // Phase 1 — Offensive: Klassenwerte stark bevorzugt (HÄ als Nebenwert),
+    // bis nur noch die Überlebens-Reserve übrig ist.
+    var offensiv = ["st", "hae", "be", "ge", "ve", "au"];
     var guard = 0;
-    while (guard++ < 500) {
+    while (char.konten.lpOffen > survivalReserve && guard++ < 500) {
       var kandidaten = [];
-      ziele.forEach(function (z) {
-        var p = E.pruefeLpAusgabe(char, z);
-        if (!p.ok) return;
-        var w;
-        if (pref.indexOf(z) >= 0) w = 8;        // Klassenwerte: stark bevorzugt
-        else if (z === "hae") w = 3;            // Härte: Überleben
-        else if (z === "lk") w = 2;             // Lebenskraft: Füller
-        else w = 1;                             // off-class: selten
+      offensiv.forEach(function (z) {
+        if (!E.pruefeLpAusgabe(char, z).ok) return;
+        var w = pref.indexOf(z) >= 0 ? 8 : (z === "hae" ? 3 : 1);
         kandidaten.push({ v: z, w: w });
       });
       if (!kandidaten.length) break;
       E.lpAusgeben(char, weightedChoice(kandidaten));
+    }
+
+    // Phase 2 — Überleben: restliche LP in Lebenskraft (immer verfügbar, Kosten 1).
+    guard = 0;
+    while (E.pruefeLpAusgabe(char, "lk").ok && guard++ < 500) {
+      E.lpAusgeben(char, "lk");
+    }
+
+    // Phase 3 — Sicherheitsnetz: falls doch noch LP offen, in irgendein gültiges Ziel.
+    guard = 0;
+    while (guard++ < 500) {
+      var rest = ["ve", "au", "st", "hae", "be", "ge"].filter(function (z) { return E.pruefeLpAusgabe(char, z).ok; });
+      if (!rest.length) break;
+      E.lpAusgeben(char, rest[0]);
     }
   }
 
