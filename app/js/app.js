@@ -1281,7 +1281,7 @@
     if (m.panzerung.length) body += '<h3>Panzerung</h3><div>' + m.panzerung.map(function (p) { return '<span class="pill">' + esc(p) + '</span>'; }).join("") + '</div>';
     if (m.faehigkeiten.length) {
       body += '<h3>Fähigkeiten</h3>';
-      m.faehigkeiten.forEach(function (f) { body += '<div style="margin-bottom:8px"><b>' + esc(f.name) + ':</b> ' + esc(f.text) + '</div>'; });
+      m.faehigkeiten.forEach(function (f) { body += '<div style="margin-bottom:8px"><b class="faeh-name">' + esc(f.name) + ':</b> ' + esc(f.text) + '</div>'; });
     }
     body += '</div>';
     modal.appendChild(h('<div class="modal-body">' + body + '</div>'));
