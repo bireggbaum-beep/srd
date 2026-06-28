@@ -129,9 +129,12 @@
     return cw;
   }
 
-  // Primärattribut & klassentypische Eigenschaften (Erschaffung/LP/Ausrüstung)
+  // Primärattribut & klassentypische Eigenschaften (Erschaffung/LP/Ausrüstung).
+  // KLASSEN_EIG ist PRIMÄR-zuerst sortiert: [0] = Hauptkampfwert-Treiber
+  // (Schaden), [1] = Sekundärwert. Krieger Schlagen=KÖR+ST -> ST primär;
+  // Späher Schießen=AGI+GE -> GE primär; Zauberwirker Zaubern=GEI+AU -> AU primär.
   var PRIMAERATTRIBUT = { Krieger: "koer", Späher: "agi", Zauberwirker: "gei" };
-  var KLASSEN_EIG = { Krieger: ["st", "hae"], Späher: ["be", "ge"], Zauberwirker: ["ve", "au"] };
+  var KLASSEN_EIG = { Krieger: ["st", "hae"], Späher: ["ge", "be"], Zauberwirker: ["au", "ve"] };
 
   // Attribute klassen-fokussiert: Primärattribut hoch, Rest gestreut (je 4..8, Σ20).
   function zufallsAttribute(klasse) {
@@ -171,20 +174,25 @@
   // Überlebensfähigkeit, Rest als Füller. Engine-Prüfung -> nie über Cap.
   function verteileLernpunkte(char) {
     var pref = KLASSEN_EIG[char.klasse] || [];
-    // ~30 % des LP-Budgets sind für Überleben reserviert (Lebenskraft, Kosten 1
+    var primaer = pref[0], sekundaer = pref[1];
+    // ~25 % des LP-Budgets sind für Überleben reserviert (Lebenskraft, Kosten 1
     // = effizienteste HP), damit kein Charakter zur Glaskanone wird.
     var budget = char.konten.lpOffen;
-    var survivalReserve = Math.round(budget * 0.30);
+    var survivalReserve = Math.round(budget * 0.25);
 
-    // Phase 1 — Offensive: Klassenwerte stark bevorzugt (HÄ als Nebenwert),
-    // bis nur noch die Überlebens-Reserve übrig ist.
+    // Phase 1 — Offensive: Primärwert (Schaden) am stärksten, dann Sekundärwert,
+    // HÄ als Überlebens-Nebenwert; bis nur noch die Überlebens-Reserve übrig ist.
     var offensiv = ["st", "hae", "be", "ge", "ve", "au"];
     var guard = 0;
     while (char.konten.lpOffen > survivalReserve && guard++ < 500) {
       var kandidaten = [];
       offensiv.forEach(function (z) {
         if (!E.pruefeLpAusgabe(char, z).ok) return;
-        var w = pref.indexOf(z) >= 0 ? 8 : (z === "hae" ? 3 : 1);
+        var w;
+        if (z === primaer) w = 10;          // Hauptkampfwert: am stärksten
+        else if (z === sekundaer) w = 4;    // Sekundärwert
+        else if (z === "hae") w = 2;        // Härte: Überleben (falls nicht pref)
+        else w = 1;                         // off-class: selten
         kandidaten.push({ v: z, w: w });
       });
       if (!kandidaten.length) break;
