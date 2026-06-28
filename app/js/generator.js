@@ -85,12 +85,12 @@
     if (isNaN(stufe) || stufe < 1) stufe = 1;
     if (stufe > 20) stufe = 20;
 
-    // 1) Zufällige, gültige Erschaffung (Attribute 4..8 = 20, Eigensch. 0..4 = 8)
+    // 1) Klassen-fokussierte, gültige Erschaffung (Attr. 4..8 = 20, Eig. 0..4 = 8)
     var volkDef = R.voelker[volk];
     var eingaben = {
       name: name, geschlecht: geschlecht, volk: volk, klasse: klasse, unterklasse: unterklasse,
-      attribute: verteile(R.erschaffung.attributPunkte, ["koer", "agi", "gei"], 4, R.erschaffung.attributMax),
-      eigenschaftenRoh: verteile(R.erschaffung.eigenschaftPunkte, ["st", "hae", "be", "ge", "ve", "au"], 0, R.erschaffung.eigenschaftMaxStart),
+      attribute: zufallsAttribute(klasse),
+      eigenschaftenRoh: zufallsEigenschaften(klasse),
       volksbonus: choice(volkDef.bonusWahl),
       klassenbonus: choice(klasseDef.bonusWahl),
       capWahl: volk === "Mensch" ? zufallsCapWahl() : null
@@ -103,10 +103,13 @@
       E.epEintragen(char, ep);
     }
 
-    // 3) Lernpunkte regelkonform ausgeben (Caps werden von der Engine geprüft)
+    // 3) Lernpunkte regelkonform & klassen-fokussiert ausgeben (Engine prüft Caps)
     verteileLernpunkte(char);
 
-    // 4) Talente & Zauber (ruhen, bis ihre Datentabellen existieren)
+    // 4) Sinnvolle Startausrüstung (skaliert mit Stufe; SRD-Listen, Zwerg-Filter)
+    ausruesten(char);
+
+    // 5) Talente & Zauber (ruhen, bis ihre Datentabellen existieren)
     generateTalente(char);
     generateZauber(char);
 
@@ -126,24 +129,95 @@
     return cw;
   }
 
-  // Gibt offene LP aus: bevorzugt günstige (klassentypische) Eigenschaften,
-  // LK als Lückenfüller. Nutzt die Engine-Prüfung -> nie über Cap.
+  // Primärattribut & klassentypische Eigenschaften (Erschaffung/LP/Ausrüstung)
+  var PRIMAERATTRIBUT = { Krieger: "koer", Späher: "agi", Zauberwirker: "gei" };
+  var KLASSEN_EIG = { Krieger: ["st", "hae"], Späher: ["be", "ge"], Zauberwirker: ["ve", "au"] };
+
+  // Attribute klassen-fokussiert: Primärattribut hoch, Rest gestreut (je 4..8, Σ20).
+  function zufallsAttribute(klasse) {
+    var prim = PRIMAERATTRIBUT[klasse] || "koer";
+    var a = { koer: 4, agi: 4, gei: 4 };
+    var rest = R.erschaffung.attributPunkte - 12; // 8 Punkte zu verteilen
+    var boost = Math.min(R.erschaffung.attributMax - 4, randInt(2, 4));
+    a[prim] += boost; rest -= boost;
+    var keys = ["koer", "agi", "gei"], guard = 0;
+    while (rest > 0 && guard++ < 100) {
+      var offen = keys.filter(function (k) { return a[k] < R.erschaffung.attributMax; });
+      if (!offen.length) break;
+      a[choice(offen)] += 1; rest--;
+    }
+    return a;
+  }
+
+  // Eigenschaften klassen-fokussiert: Klassenwerte zuerst (je max 4 bei Start, Σ8).
+  function zufallsEigenschaften(klasse) {
+    var prefs = KLASSEN_EIG[klasse] || [];
+    var e = { st: 0, hae: 0, be: 0, ge: 0, ve: 0, au: 0 };
+    var rest = R.erschaffung.eigenschaftPunkte;
+    prefs.forEach(function (p) {
+      var add = Math.min(R.erschaffung.eigenschaftMaxStart, randInt(2, 4), rest);
+      e[p] += add; rest -= add;
+    });
+    var keys = Object.keys(e), guard = 0;
+    while (rest > 0 && guard++ < 100) {
+      var offen = keys.filter(function (k) { return e[k] < R.erschaffung.eigenschaftMaxStart; });
+      if (!offen.length) break;
+      e[choice(offen)] += 1; rest--;
+    }
+    return e;
+  }
+
+  // Gibt offene LP aus: stark fokussiert auf die Klassenwerte, HÄ/LK für
+  // Überlebensfähigkeit, Rest als Füller. Engine-Prüfung -> nie über Cap.
   function verteileLernpunkte(char) {
     var ziele = ["st", "hae", "be", "ge", "ve", "au", "lk"];
+    var pref = KLASSEN_EIG[char.klasse] || [];
     var guard = 0;
     while (guard++ < 500) {
       var kandidaten = [];
       ziele.forEach(function (z) {
         var p = E.pruefeLpAusgabe(char, z);
         if (!p.ok) return;
-        // Gewicht: billiger = wahrscheinlicher; LK nur als Füller
-        var w = z === "lk" ? 1 : (7 - E.lpKosten(char, z) * 2); // Kosten 2 -> w3, Kosten 3 -> w1
-        if (w < 1) w = 1;
+        var w;
+        if (pref.indexOf(z) >= 0) w = 8;        // Klassenwerte: stark bevorzugt
+        else if (z === "hae") w = 3;            // Härte: Überleben
+        else if (z === "lk") w = 2;             // Lebenskraft: Füller
+        else w = 1;                             // off-class: selten
         kandidaten.push({ v: z, w: w });
       });
       if (!kandidaten.length) break;
       E.lpAusgeben(char, weightedChoice(kandidaten));
     }
+  }
+
+  // Sinnvolle Startausrüstung je Klasse, skaliert mit der Stufe.
+  // Alle Werte aus den SRD-Listen (DS_REGELN.waffen/.ruestungen).
+  function ausruesten(char) {
+    var volk = char.volk, stufe = char.stufe;
+    // "Für Zwerge zu unhandlich"-Waffen für Zwerge ausschließen.
+    function pickWaffe(namen) {
+      var opts = namen.filter(function (n) {
+        var w = E.findeWaffe(n);
+        return w && !(volk === "Zwerg" && /Zwerge/.test(w.besonderes || ""));
+      });
+      return opts.length ? choice(opts) : null;
+    }
+    if (char.klasse === "Krieger") {
+      char.ausruestung.nahwaffe = pickWaffe(["Schwert, Lang-", "Schwert, Breit-", "Streitaxt (2h)", "Bihänder (2h)", "Streithammer (2h)", "Axt"]);
+      var koerper = stufe >= 12 ? "Plattenpanzer" : (stufe >= 6 ? "Kettenpanzer" : "Lederpanzer");
+      char.ausruestung.ruestungen = [koerper];
+      if (Math.random() < 0.5) char.ausruestung.ruestungen.push("Schild, Metall-");
+      if (Math.random() < 0.5) char.ausruestung.ruestungen.push("Metallhelm");
+    } else if (char.klasse === "Späher") {
+      char.ausruestung.fernwaffe = pickWaffe(["Bogen, Lang-", "Bogen, Kurz-", "Armbrust, leicht (2h)"]);
+      char.ausruestung.nahwaffe = pickWaffe(["Schwert, Kurz-", "Dolch", "Axt"]);
+      char.ausruestung.ruestungen = ["Lederpanzer"];
+      if (Math.random() < 0.4) char.ausruestung.ruestungen.push("Lederschienen");
+    } else { // Zauberwirker
+      char.ausruestung.nahwaffe = "Kampfstab (2h)";
+      char.ausruestung.ruestungen = [Math.random() < 0.5 ? "Robe (runenbestickt)" : "Robe"];
+    }
+    E.log(char, "Ausrüstung", "Startausrüstung generiert (" + char.klasse + ", Stufe " + stufe + ")");
   }
 
   // =========================================================================
