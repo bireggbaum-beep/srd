@@ -53,6 +53,9 @@
     var btnNew = h('<button class="btn btn-primary">+ Neuer Charakter</button>');
     btnNew.onclick = function () { startCreate(); };
     actions.appendChild(btnNew);
+    var btnGen = h('<button class="btn">🎲 Zufallscharakter</button>');
+    btnGen.onclick = function () { go("generator"); };
+    actions.appendChild(btnGen);
     if (roster.length) {
       var btnExport = h('<button class="btn">Gruppe exportieren</button>');
       btnExport.onclick = function () { S.exportRoster(); toast("roster.json heruntergeladen."); };
@@ -328,6 +331,77 @@
       go("sheet", char.id);
     } catch (err) {
       toast("Fehler: " + err.message);
+    }
+  }
+
+  // ===========================================================================
+  // ZUFALLSGENERATOR
+  // ===========================================================================
+  function renderGenerator() {
+    var wrap = h('<div></div>');
+    wrap.appendChild(h('<div class="breadcrumb"><a id="bc-roster">Gruppe</a> / Zufallscharakter</div>'));
+    wrap.appendChild(h('<h2>🎲 Zufalls-Charaktergenerator</h2>'));
+
+    var p = h('<div class="panel"></div>');
+    p.appendChild(h('<div class="help" style="margin-bottom:12px">Lass alles auswürfeln oder gib einzelne Felder vor — der Rest bleibt auf „Zufällig". Der erzeugte Charakter ist regelkonform (Attribute, Eigenschaften, Caps, LP-Ökonomie). Talente &amp; Zauber kommen automatisch dazu, sobald wir ihre Daten ergänzen.</div>'));
+
+    var rZufall = '<option value="zufall">🎲 Zufällig</option>';
+
+    var row1 = h('<div class="row"></div>');
+    row1.appendChild(h('<div class="field"><label>Name</label><input type="text" id="g-name" placeholder="leer = zufällig"/></div>'));
+    row1.appendChild(h('<div class="field"><label>Geschlecht</label><select id="g-geschlecht">' + rZufall +
+      '<option value="männlich">männlich</option><option value="weiblich">weiblich</option></select></div>'));
+    p.appendChild(row1);
+
+    var row2 = h('<div class="row"></div>');
+    row2.appendChild(h('<div class="field"><label>Volk</label><select id="g-volk">' + rZufall +
+      Object.keys(R.voelker).map(function (v) { return '<option value="' + v + '">' + v + '</option>'; }).join("") + '</select></div>'));
+    row2.appendChild(h('<div class="field"><label>Klasse</label><select id="g-klasse">' + rZufall +
+      Object.keys(R.klassen).map(function (k) { return '<option value="' + k + '">' + k + '</option>'; }).join("") + '</select></div>'));
+    var uk = R.klassen.Zauberwirker.unterklassen;
+    row2.appendChild(h('<div class="field"><label>Unterklasse <span class="muted">(nur Zauberwirker)</span></label><select id="g-unterklasse">' + rZufall +
+      uk.map(function (u) { return '<option value="' + u + '">' + u + '</option>'; }).join("") + '</select></div>'));
+    p.appendChild(row2);
+
+    var stufeOpts = "";
+    for (var s = 1; s <= 20; s++) stufeOpts += '<option value="' + s + '">Stufe ' + s + '</option>';
+    var row3 = h('<div class="row"></div>');
+    row3.appendChild(h('<div class="field"><label>Stufe</label><select id="g-stufe">' + rZufall + stufeOpts + '</select></div>'));
+    row3.appendChild(h('<div class="field"></div>')); // Platzhalter fürs Layout
+    p.appendChild(row3);
+
+    var btnRow = h('<div class="inline" style="margin-top:8px"></div>');
+    var btnGen = h('<button class="btn btn-primary">🎲 Charakter generieren</button>');
+    btnGen.onclick = doGenerate;
+    var btnCancel = h('<button class="btn btn-ghost">Abbrechen</button>');
+    btnCancel.onclick = function () { go("roster"); };
+    btnRow.appendChild(btnGen); btnRow.appendChild(btnCancel);
+    p.appendChild(btnRow);
+    wrap.appendChild(p);
+
+    app.appendChild(wrap);
+    wrap.querySelector("#bc-roster").onclick = function () { go("roster"); };
+  }
+
+  function doGenerate() {
+    try {
+      var opt = {
+        name: document.getElementById("g-name").value.trim() || "zufall",
+        geschlecht: document.getElementById("g-geschlecht").value,
+        volk: document.getElementById("g-volk").value,
+        klasse: document.getElementById("g-klasse").value,
+        unterklasse: document.getElementById("g-unterklasse").value,
+        stufe: document.getElementById("g-stufe").value
+      };
+      var char = global.DS_GEN.generate(opt);
+      char.id = S.eindeutigeId(char.name);
+      S.upsert(char);
+      toast("„" + char.name + "“ generiert (" + char.volk + " " + char.klasse + ", Stufe " + char.stufe + ").");
+      state.tab = "uebersicht";
+      go("sheet", char.id);
+    } catch (err) {
+      toast("Generierung fehlgeschlagen: " + err.message);
+      console.error(err);
     }
   }
 
@@ -813,6 +887,7 @@
   function render() {
     app.innerHTML = "";
     if (state.view === "create") renderCreate();
+    else if (state.view === "generator") renderGenerator();
     else if (state.view === "sheet") renderSheet();
     else renderRoster();
   }
