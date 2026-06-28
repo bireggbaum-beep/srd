@@ -142,6 +142,33 @@ td.num, th.num { text-align: right; }
 .empty .big { font-size: 42px; margin-bottom: 10px; }
 hr.sep { border: none; border-top: 1px solid var(--line); margin: 16px 0; }
 
+/* ---- Bestiarium / Monster ---- */
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.chip {
+  background: var(--panel-2); border: 1px solid var(--line); color: var(--muted);
+  border-radius: 999px; padding: 4px 12px; cursor: pointer; font-size: 13px; white-space: nowrap;
+}
+.chip:hover { border-color: var(--accent); color: var(--ink); }
+.chip.active { background: var(--accent); border-color: var(--accent); color: #1a1407; font-weight: 600; }
+
+.mcard { position: relative; }
+.mcard .ghbadge { position: absolute; top: 10px; right: 12px; font-size: 12px; color: var(--muted); }
+.mcard .mname { font-size: 16px; font-weight: 600; padding-right: 56px; }
+.mcard .mgrp { color: var(--muted); font-size: 12px; margin: 2px 0 8px; }
+.mcard .mstats { display: flex; gap: 12px; font-size: 13px; flex-wrap: wrap; }
+.mcard .mstats b { color: var(--accent-2); }
+.mcard .info { position: absolute; bottom: 8px; right: 10px; font-size: 12px; color: var(--muted); cursor: pointer; }
+.mcard .info:hover { color: var(--accent-2); }
+
+.encounter { position: sticky; top: 56px; z-index: 10; }
+.enc-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.enc-row .en { flex: 1; }
+.enc-row .qty { min-width: 26px; text-align: center; font-weight: 600; }
+.enc-meta { color: var(--muted); font-size: 12px; }
+.statblock { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px 12px; }
+.statblock .sb { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; font-size: 13px; display: flex; justify-content: space-between; }
+.statblock .sb b { color: var(--accent-2); }
+
 /* ---- Gesamtansicht (Steckbrief-Overlay) ---- */
 .overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,.6);

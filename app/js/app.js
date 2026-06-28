@@ -18,10 +18,11 @@
   var app = document.getElementById("app");
 
   var state = {
-    view: "roster",   // 'roster' | 'create' | 'sheet'
+    view: "roster",   // 'roster' | 'create' | 'generator' | 'sheet' | 'monster'
     currentId: null,
     tab: "uebersicht",
-    create: null      // Arbeitszustand der Erschaffung
+    create: null,     // Arbeitszustand der Erschaffung
+    monster: { gruppe: "Alle", suche: "" }
   };
 
   // ---- kleine Helfer -------------------------------------------------------
@@ -1042,6 +1043,165 @@
   }
   function waffenWB(name) { var w = E.findeWaffe(name); return w ? " (WB " + (w.wb >= 0 ? "+" : "") + w.wb + ")" : ""; }
 
+  // ===========================================================================
+  // BESTIARIUM / MONSTER (für den SL)
+  // ===========================================================================
+  var MONSTER_GRUPPEN = ["Alle", "Humanoide", "Tiere", "Untote", "Magische Wesen", "Konstrukte", "Pflanzenwesen"];
+
+  function renderMonster() {
+    var monster = R.monster || [];
+    var wrap = h('<div></div>');
+    wrap.appendChild(h('<h2 style="margin:0 0 4px">🐉 Bestiarium <span class="muted">(' + monster.length + ' Kreaturen)</span></h2>'));
+    wrap.appendChild(h('<div class="help" style="margin-bottom:6px">Karte anklicken = zur Begegnung hinzufügen · ℹ = Statblock lesen.</div>'));
+
+    // --- Begegnung (Encounter) ---
+    wrap.appendChild(renderBegegnung());
+
+    // --- Quick-Filter (Gruppen) + Suche ---
+    var chips = h('<div class="chip-row"></div>');
+    MONSTER_GRUPPEN.forEach(function (g) {
+      var chip = h('<span class="chip' + (state.monster.gruppe === g ? " active" : "") + '">' + g + '</span>');
+      chip.onclick = function () { state.monster.gruppe = g; render(); };
+      chips.appendChild(chip);
+    });
+    wrap.appendChild(chips);
+    var suche = h('<input type="text" id="m-suche" placeholder="🔎 Suche (Name)…" value="' + esc(state.monster.suche) + '" style="max-width:280px;margin-bottom:12px"/>');
+    suche.addEventListener("input", function () {
+      state.monster.suche = suche.value;
+      var cur = suche.selectionStart;
+      renderCardsOnly();
+      var s2 = document.getElementById("m-suche"); if (s2) { s2.focus(); s2.setSelectionRange(cur, cur); }
+    });
+    wrap.appendChild(suche);
+
+    var cardsWrap = h('<div id="m-cards"></div>');
+    wrap.appendChild(cardsWrap);
+    app.appendChild(wrap);
+    renderCardsOnly();
+  }
+
+  function gefilterteMonster() {
+    var q = state.monster.suche.trim().toLowerCase();
+    return (R.monster || []).filter(function (m) {
+      if (state.monster.gruppe !== "Alle" && m.gruppe !== state.monster.gruppe) return false;
+      if (q && m.name.toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    });
+  }
+
+  function renderCardsOnly() {
+    var box = document.getElementById("m-cards");
+    if (!box) return;
+    box.innerHTML = "";
+    var liste = gefilterteMonster();
+    box.appendChild(h('<div class="help" style="margin-bottom:8px">' + liste.length + ' Treffer</div>'));
+    var grid = h('<div class="grid grid-cards"></div>');
+    liste.forEach(function (m) {
+      var card = h('<div class="card mcard">' +
+        '<span class="ghbadge">GH ' + (m.gh != null ? m.gh : "?") + ' · ' + m.ep + ' EP</span>' +
+        '<div class="mname">' + esc(m.name) + '</div>' +
+        '<div class="mgrp">' + esc(m.gruppe) + ' · ' + esc(m.gk) + '</div>' +
+        '<div class="mstats"><span>LK <b>' + (m.kw.lk != null ? m.kw.lk : "?") + '</b></span>' +
+        '<span>Abw <b>' + (m.kw.abwehr != null ? m.kw.abwehr : "?") + '</b></span>' +
+        '<span>Schl <b>' + (m.kw.schlagen != null ? m.kw.schlagen : "–") + '</b></span>' +
+        (m.kw.schiessen != null ? '<span>Schie <b>' + m.kw.schiessen + '</b></span>' : '') +
+        '</div>' +
+        '<span class="info">ℹ Statblock</span></div>');
+      card.onclick = function () { S.begegnungAdd(m.slug, 1); toast(m.name + " zur Begegnung hinzugefügt."); refreshBegegnung(); };
+      card.querySelector(".info").onclick = function (ev) { ev.stopPropagation(); openMonster(m); };
+      grid.appendChild(card);
+    });
+    box.appendChild(grid);
+  }
+
+  function renderBegegnung() {
+    var panel = h('<div class="panel encounter" id="begegnung"></div>');
+    fillBegegnung(panel);
+    return panel;
+  }
+  function refreshBegegnung() {
+    var p = document.getElementById("begegnung");
+    if (p) { p.innerHTML = ""; fillBegegnung(p); }
+  }
+  function fillBegegnung(panel) {
+    var list = S.begegnungLoad();
+    var bySlug = {}; (R.monster || []).forEach(function (m) { bySlug[m.slug] = m; });
+    var anzahl = list.reduce(function (a, e) { return a + e.count; }, 0);
+    var sumEp = list.reduce(function (a, e) { var m = bySlug[e.slug]; return a + (m ? (m.ep || 0) * e.count : 0); }, 0);
+    var maxGh = list.reduce(function (a, e) { var m = bySlug[e.slug]; return Math.max(a, m ? (m.gh || 0) : 0); }, 0);
+
+    var head = h('<div class="inline" style="justify-content:space-between;width:100%"></div>');
+    head.appendChild(h('<h2 style="margin:0">Begegnung <span class="muted">' + (anzahl ? "(" + anzahl + " Monster · Σ " + sumEp + " EP · max GH " + maxGh + ")" : "(leer)") + '</span></h2>'));
+    if (list.length) {
+      var clear = h('<button class="btn btn-sm btn-danger">Leeren</button>');
+      clear.onclick = function () { S.begegnungClear(); refreshBegegnung(); };
+      head.appendChild(clear);
+    }
+    panel.appendChild(head);
+
+    if (!list.length) {
+      panel.appendChild(h('<div class="muted" style="margin-top:6px">Noch keine Monster. Unten eine Karte anklicken.</div>'));
+      return;
+    }
+    list.forEach(function (e) {
+      var m = bySlug[e.slug]; if (!m) return;
+      var row = h('<div class="enc-row"></div>');
+      var name = h('<span class="en"><a style="cursor:pointer">' + esc(m.name) + '</a> <span class="enc-meta">GH ' + m.gh + ' · LK ' + m.kw.lk + ' · ' + m.ep + ' EP</span></span>');
+      name.querySelector("a").onclick = function () { openMonster(m); };
+      var minus = h('<button class="btn btn-sm">−</button>');
+      var qty = h('<span class="qty">' + e.count + '</span>');
+      var plus = h('<button class="btn btn-sm">+</button>');
+      var del = h('<button class="btn btn-sm" title="Entfernen">✕</button>');
+      minus.onclick = function () { S.begegnungAdd(e.slug, -1); refreshBegegnung(); };
+      plus.onclick = function () { S.begegnungAdd(e.slug, 1); refreshBegegnung(); };
+      del.onclick = function () { S.begegnungAdd(e.slug, -e.count); refreshBegegnung(); };
+      row.appendChild(name); row.appendChild(minus); row.appendChild(qty); row.appendChild(plus); row.appendChild(del);
+      panel.appendChild(row);
+    });
+  }
+
+  function openMonster(m) {
+    var overlay = h('<div class="overlay"></div>');
+    var modal = h('<div class="modal" style="max-width:600px"></div>');
+    var head = h('<div class="modal-head"><h2>' + esc(m.name) + ' <span class="muted" style="font-weight:400;font-size:14px">· ' + esc(m.gruppe) + ' · ' + esc(m.gk) + '</span></h2></div>');
+    var hb = h('<div class="inline no-print"></div>');
+    var addBtn = h('<button class="btn btn-sm btn-primary">+ Begegnung</button>');
+    addBtn.onclick = function () { S.begegnungAdd(m.slug, 1); toast(m.name + " hinzugefügt."); refreshBegegnung(); };
+    hb.appendChild(addBtn);
+    hb.appendChild(h('<a class="btn btn-sm" href="' + m.ref + '" target="_blank" rel="noopener">↗ Regeln</a>'));
+    var close = h('<button class="btn btn-sm">Schließen ✕</button>'); close.onclick = closeMonster;
+    hb.appendChild(close); head.appendChild(hb); modal.appendChild(head);
+
+    function sb(k, v) { return v == null || v === "" ? "" : '<div class="sb"><span>' + k + '</span><b>' + v + '</b></div>'; }
+    var grid = '<div class="statblock">' +
+      sb("KÖR", m.attr.koer) + sb("AGI", m.attr.agi) + sb("GEI", m.attr.gei) +
+      sb("ST", m.eig.st) + sb("BE", m.eig.be) + sb("VE", m.eig.ve) +
+      sb("HÄ", m.eig.hae) + sb("GE", m.eig.ge) + sb("AU", m.eig.au) + '</div>';
+    var kw = '<div class="statblock" style="margin-top:8px">' +
+      sb("LK", m.kw.lk) + sb("Abwehr", m.kw.abwehr) + sb("Initiative", m.kw.init) +
+      sb("Laufen", m.kw.laufen != null ? m.kw.laufen + " m" : null) + sb("Schlagen", m.kw.schlagen) + sb("Schießen", m.kw.schiessen) +
+      sb("GH", m.gh) + sb("EP", m.ep) + '</div>';
+    var body = '<div class="sheet-section">' + grid + kw;
+    if (m.bewaffnung.length) body += '<h3 style="margin-top:14px">Bewaffnung</h3><div>' + m.bewaffnung.map(function (w) { return '<span class="pill">' + esc(w) + '</span>'; }).join("") + '</div>';
+    if (m.panzerung.length) body += '<h3>Panzerung</h3><div>' + m.panzerung.map(function (p) { return '<span class="pill">' + esc(p) + '</span>'; }).join("") + '</div>';
+    if (m.faehigkeiten.length) {
+      body += '<h3>Fähigkeiten</h3>';
+      m.faehigkeiten.forEach(function (f) { body += '<div style="margin-bottom:8px"><b>' + esc(f.name) + ':</b> ' + esc(f.text) + '</div>'; });
+    }
+    body += '</div>';
+    modal.appendChild(h('<div class="modal-body">' + body + '</div>'));
+    overlay.appendChild(modal);
+    overlay.addEventListener("click", function (ev) { if (ev.target === overlay) closeMonster(); });
+    document.addEventListener("keydown", escCloseMonster);
+    document.body.appendChild(overlay); overlay.id = "monster-overlay";
+  }
+  function escCloseMonster(ev) { if (ev.key === "Escape") closeMonster(); }
+  function closeMonster() {
+    var o = document.getElementById("monster-overlay");
+    if (o) o.remove();
+    document.removeEventListener("keydown", escCloseMonster);
+  }
+
   // ---- Diverses ------------------------------------------------------------
   function roman(n) { return ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"][n] || ("×" + n); }
 
@@ -1050,6 +1210,7 @@
     app.innerHTML = "";
     if (state.view === "create") renderCreate();
     else if (state.view === "generator") renderGenerator();
+    else if (state.view === "monster") renderMonster();
     else if (state.view === "sheet") renderSheet();
     else renderRoster();
   }
@@ -1058,6 +1219,7 @@
   function wireNav() {
     document.getElementById("nav-home").onclick = function () { go("roster"); };
     document.getElementById("nav-roster").onclick = function () { go("roster"); };
+    document.getElementById("nav-monster").onclick = function () { go("monster"); };
     document.getElementById("nav-create").onclick = function () { startCreate(); };
     var fileInput = document.getElementById("import-file");
     document.getElementById("nav-import").onclick = function () { fileInput.click(); };
