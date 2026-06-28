@@ -231,13 +231,59 @@
   }
 
   // ---- Talente -------------------------------------------------------------
+  // Talent-Definition (aus DS_REGELN.talente) per Name finden.
+  function talentDef(name) {
+    var T = R.talente;
+    if (!T) return null;
+    return T.filter(function (t) { return t.name === name; })[0] || null;
+  }
+
+  // Bester Zugang eines Charakters zu einem Talent (über Grundklasse,
+  // Unterklasse und ggf. Heldenklasse): kleinste Mindeststufe, höchster Rang.
+  function talentZugang(char, t) {
+    if (!t || !t.zugang) return null;
+    var keys = [char.klasse];
+    if (char.unterklasse) keys.push(char.unterklasse);
+    if (char.heldenklasse) keys.push(char.heldenklasse);
+    var best = null;
+    keys.forEach(function (k) {
+      var z = t.zugang[k];
+      if (!z) return;
+      if (!best) best = { ab: z.ab, rang: z.rang };
+      else { best.ab = Math.min(best.ab, z.ab); best.rang = Math.max(best.rang, z.rang); }
+    });
+    return best;
+  }
+
+  function aktuellerRang(char, name) {
+    var t = char.talente.filter(function (x) { return x.name === name; })[0];
+    return t ? t.rang : 0;
+  }
+
+  // Kann der Charakter dieses Talent (weiter) erlernen?
+  function talentVerfuegbar(char, t) {
+    var z = talentZugang(char, t);
+    if (!z) return { ok: false, grund: char.klasse + " kann dieses Talent nicht lernen" };
+    if (char.stufe < z.ab) return { ok: false, grund: "Erst ab Stufe " + z.ab };
+    if (aktuellerRang(char, t.name) >= z.rang) return { ok: false, grund: "Maximalrang " + z.rang + " erreicht" };
+    if ((char.konten.tpOffen || 0) < 1) return { ok: false, grund: "Kein Talentpunkt offen" };
+    return { ok: true, ab: z.ab, maxRang: z.rang };
+  }
+
   // Talent hinzufügen / Rang erhöhen, kostet 1 TP pro Rang.
+  // Mit Talentdaten (DS_REGELN.talente) wird die Voraussetzung geprüft;
+  // ohne Daten (frühe Phase) bleibt es frei eintragbar.
   function talentLernen(char, name) {
     if ((char.konten.tpOffen || 0) < 1) throw new Error("Kein Talentpunkt verfügbar");
+    var def = talentDef(name);
+    if (def) {
+      var p = talentVerfuegbar(char, def);
+      if (!p.ok) throw new Error(p.grund);
+    }
     var t = char.talente.filter(function (x) { return x.name === name; })[0];
-    if (t) { t.rang += 1; } else { char.talente.push({ name: name, rang: 1 }); t = { rang: 1 }; }
+    if (t) { t.rang += 1; } else { char.talente.push({ name: name, rang: 1 }); }
     char.konten.tpOffen -= 1;
-    var neuerRang = (char.talente.filter(function (x) { return x.name === name; })[0]).rang;
+    var neuerRang = aktuellerRang(char, name);
     log(char, "Talent gelernt", name + " (Rang " + neuerRang + ") für 1 TP");
     return char;
   }
@@ -383,6 +429,10 @@
     zauberBudget: zauberBudget,
     zauberStufensumme: zauberStufensumme,
     talentLernen: talentLernen,
+    talentDef: talentDef,
+    talentZugang: talentZugang,
+    talentVerfuegbar: talentVerfuegbar,
+    aktuellerRang: aktuellerRang,
     zauberLernen: zauberLernen,
     validiereErschaffung: validiereErschaffung,
     erschaffeChar: erschaffeChar,

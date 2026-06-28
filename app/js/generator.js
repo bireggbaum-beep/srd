@@ -245,36 +245,21 @@
   }
 
   // =========================================================================
-  // HOOKS für Talente & Zauber — dormant bis Datentabellen existieren
+  // HOOKS für Talente & Zauber
   // =========================================================================
-  // Erwartetes Schema (siehe PROJEKT §5):
-  //   DS_REGELN.talente = [ { name, voraussetzungen: { <Klasse>: minStufe, ... }, maxRang, ... } ]
-  //   DS_REGELN.zauber  = [ { name, stufe, klassen: [ "Heiler", ... ], ... } ]
+  // Talente: DS_REGELN.talente vorhanden -> TP werden auf gültige Talente
+  // verteilt (Voraussetzungs-/Rangprüfung über die Engine). Mit etwas
+  // Themen-Fokus: passende Kampf-Talente bevorzugt, sonst irgendein gültiges.
   function generateTalente(char) {
     var T = R.talente;
-    if (!T || !T.length) return; // noch keine Talentdaten -> TP bleiben gespart
+    if (!T || !T.length) return; // keine Talentdaten -> TP bleiben gespart
     var guard = 0;
-    while ((char.konten.tpOffen || 0) > 0 && guard++ < 300) {
-      var moeglich = T.filter(function (t) { return talentMoeglich(char, t); });
+    while ((char.konten.tpOffen || 0) > 0 && guard++ < 400) {
+      var moeglich = T.filter(function (t) { return E.talentVerfuegbar(char, t).ok; });
       if (!moeglich.length) break;
       try { E.talentLernen(char, choice(moeglich).name); }
       catch (e) { break; }
     }
-  }
-
-  function talentMoeglich(char, t) {
-    var vs = t.voraussetzungen || {};
-    // Nicht gelistete Klassen können das Talent gar nicht lernen.
-    var klasse = char.heldenklasse || char.klasse;
-    var minStufe = vs[char.klasse]; // Grundklasse maßgeblich (Heldenklassen erben sie)
-    if (minStufe == null && char.unterklasse != null) minStufe = vs[char.unterklasse];
-    if (minStufe == null && klasse !== char.klasse) minStufe = vs[klasse];
-    if (minStufe == null || char.stufe < minStufe) return false;
-    if (t.maxRang) {
-      var cur = (char.talente.filter(function (x) { return x.name === t.name; })[0] || {}).rang || 0;
-      if (cur >= t.maxRang) return false;
-    }
-    return true;
   }
 
   function generateZauber(char) {
