@@ -125,6 +125,22 @@
     }
   }
 
+  // ---- Begegnung (Encounter für den SL) ------------------------------------
+  var BKEY = "ds4_begegnung_v1";
+  function begegnungLoad() {
+    try { var r = localStorage.getItem(BKEY); return r ? JSON.parse(r) : []; }
+    catch (e) { return []; }
+  }
+  function begegnungSave(list) { localStorage.setItem(BKEY, JSON.stringify(list)); }
+  function begegnungAdd(slug, delta) {
+    var list = begegnungLoad();
+    var e = list.filter(function (x) { return x.slug === slug; })[0];
+    if (e) { e.count += (delta || 1); } else if ((delta || 1) > 0) { list.push({ slug: slug, count: (delta || 1) }); }
+    list = list.filter(function (x) { return x.count > 0; });
+    begegnungSave(list); return list;
+  }
+  function begegnungClear() { begegnungSave([]); }
+
   global.DS_STORE = {
     load: load,
     save: save,
@@ -136,6 +152,10 @@
     exportRoster: exportRoster,
     parseImport: parseImport,
     importChars: importChars,
-    seedIfEmpty: seedIfEmpty
+    seedIfEmpty: seedIfEmpty,
+    begegnungLoad: begegnungLoad,
+    begegnungSave: begegnungSave,
+    begegnungAdd: begegnungAdd,
+    begegnungClear: begegnungClear
   };
 })(typeof window !== "undefined" ? window : this);
