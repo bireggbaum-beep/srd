@@ -1107,7 +1107,7 @@
         (m.kw.schiessen != null ? '<span>Schie <b>' + m.kw.schiessen + '</b></span>' : '') +
         '</div>' +
         '<span class="info">ℹ Statblock</span></div>');
-      card.onclick = function () { S.begegnungAdd(m.slug, 1); toast(m.name + " zur Begegnung hinzugefügt."); refreshBegegnung(); };
+      card.onclick = function () { S.begegnungAddInstanz(m, 1); toast(m.name + " zur Begegnung hinzugefügt."); refreshBegegnung(); };
       card.querySelector(".info").onclick = function (ev) { ev.stopPropagation(); openMonster(m); };
       grid.appendChild(card);
     });
@@ -1123,18 +1123,21 @@
     var p = document.getElementById("begegnung");
     if (p) { p.innerHTML = ""; fillBegegnung(p); }
   }
+  var ZUSTAENDE_PRESETS = ["Geblendet", "Schlafend", "Vergiftet", "Brennend", "Verlangsamt", "Gelähmt", "Niedergeschlagen", "Bewusstlos", "In Furcht", "Festgehalten", "Verwirrt", "Stumm"];
+
   function fillBegegnung(panel) {
     var list = S.begegnungLoad();
     var bySlug = {}; (R.monster || []).forEach(function (m) { bySlug[m.slug] = m; });
-    var anzahl = list.reduce(function (a, e) { return a + e.count; }, 0);
-    var sumEp = list.reduce(function (a, e) { var m = bySlug[e.slug]; return a + (m ? (m.ep || 0) * e.count : 0); }, 0);
+    var lebend = list.filter(function (e) { return !e.tot; });
+    var sumEp = list.reduce(function (a, e) { var m = bySlug[e.slug]; return a + (m ? (m.ep || 0) : 0); }, 0);
     var maxGh = list.reduce(function (a, e) { var m = bySlug[e.slug]; return Math.max(a, m ? (m.gh || 0) : 0); }, 0);
 
     var head = h('<div class="inline" style="justify-content:space-between;width:100%"></div>');
-    head.appendChild(h('<h2 style="margin:0">Begegnung <span class="muted">' + (anzahl ? "(" + anzahl + " Monster · Σ " + sumEp + " EP · max GH " + maxGh + ")" : "(leer)") + '</span></h2>'));
+    head.appendChild(h('<h2 style="margin:0">Begegnung <span class="muted">' +
+      (list.length ? "(" + lebend.length + "/" + list.length + " aktiv · Σ " + sumEp + " EP · max GH " + maxGh + ")" : "(leer)") + '</span></h2>'));
     if (list.length) {
       var clear = h('<button class="btn btn-sm btn-danger">Leeren</button>');
-      clear.onclick = function () { S.begegnungClear(); refreshBegegnung(); };
+      clear.onclick = function () { if (confirm("Begegnung leeren?")) { S.begegnungClear(); refreshBegegnung(); } };
       head.appendChild(clear);
     }
     panel.appendChild(head);
@@ -1143,21 +1146,113 @@
       panel.appendChild(h('<div class="muted" style="margin-top:6px">Noch keine Monster. Unten eine Karte anklicken.</div>'));
       return;
     }
+
     list.forEach(function (e) {
-      var m = bySlug[e.slug]; if (!m) return;
-      var row = h('<div class="enc-row"></div>');
-      var name = h('<span class="en"><a style="cursor:pointer">' + esc(m.name) + '</a> <span class="enc-meta">GH ' + m.gh + ' · LK ' + m.kw.lk + ' · ' + m.ep + ' EP</span></span>');
-      name.querySelector("a").onclick = function () { openMonster(m); };
-      var minus = h('<button class="btn btn-sm">−</button>');
-      var qty = h('<span class="qty">' + e.count + '</span>');
-      var plus = h('<button class="btn btn-sm">+</button>');
-      var del = h('<button class="btn btn-sm" title="Entfernen">✕</button>');
-      minus.onclick = function () { S.begegnungAdd(e.slug, -1); refreshBegegnung(); };
-      plus.onclick = function () { S.begegnungAdd(e.slug, 1); refreshBegegnung(); };
-      del.onclick = function () { S.begegnungAdd(e.slug, -e.count); refreshBegegnung(); };
-      row.appendChild(name); row.appendChild(minus); row.appendChild(qty); row.appendChild(plus); row.appendChild(del);
-      panel.appendChild(row);
+      var m = bySlug[e.slug];
+      var frac = e.lkMax ? Math.max(0, e.lk) / e.lkMax : 0;
+      var farbe = e.tot ? "var(--muted)" : (frac <= 0.25 ? "var(--bad)" : (frac <= 0.6 ? "var(--accent-2)" : "var(--good)"));
+      var inst = h('<div class="enc-inst' + (e.tot ? " tot" : "") + '"></div>');
+
+      // Zeile 1: Name + LK + Steuerung
+      var z1 = h('<div class="enc-line1"></div>');
+      var name = h('<span class="en"><a style="cursor:pointer">' + esc(e.label) + '</a></span>');
+      if (m) name.querySelector("a").onclick = function () { openMonster(m); };
+      z1.appendChild(name);
+      z1.appendChild(h('<span class="lkval" style="color:' + farbe + '">LK ' + Math.max(0, e.lk) + '/' + e.lkMax + '</span>'));
+
+      var dmg = h('<input type="number" class="dmg" placeholder="±" title="Schaden/Heilung" />');
+      var bDmg = h('<button class="btn btn-sm" title="Schaden abziehen">💥</button>');
+      var bHeal = h('<button class="btn btn-sm" title="heilen">＋</button>');
+      function applyLk(sign) {
+        var v = parseInt(dmg.value, 10);
+        if (isNaN(v) || v <= 0) { v = 1; }
+        var neu = e.lk + sign * v;
+        if (neu < 0) neu = 0;
+        if (neu > e.lkMax) neu = e.lkMax;
+        S.begegnungUpdate(e.id, { lk: neu, tot: neu <= 0 });
+        refreshBegegnung();
+      }
+      bDmg.onclick = function () { applyLk(-1); };
+      bHeal.onclick = function () { applyLk(1); };
+      dmg.addEventListener("keydown", function (ev) { if (ev.key === "Enter") applyLk(-1); });
+      z1.appendChild(dmg); z1.appendChild(bDmg); z1.appendChild(bHeal);
+
+      var bTot = h('<button class="btn btn-sm" title="' + (e.tot ? "wiederbeleben" : "als kampfunfähig markieren") + '">' + (e.tot ? "↺" : "💀") + '</button>');
+      bTot.onclick = function () { S.begegnungUpdate(e.id, { tot: !e.tot, lk: e.tot && e.lk <= 0 ? e.lkMax : e.lk }); refreshBegegnung(); };
+      var del = h('<button class="btn btn-sm btn-danger" title="entfernen">✕</button>');
+      del.onclick = function () { S.begegnungRemove(e.id); refreshBegegnung(); };
+      z1.appendChild(bTot); z1.appendChild(del);
+      inst.appendChild(z1);
+
+      // Zeile 2: Zustände
+      var z2 = h('<div class="enc-line2"></div>');
+      (e.zustaende || []).forEach(function (z) {
+        var pill = h('<span class="pill bad" style="cursor:pointer" title="entfernen">' + esc(z) + ' ✕</span>');
+        pill.onclick = function () {
+          S.begegnungUpdate(e.id, { zustaende: e.zustaende.filter(function (x) { return x !== z; }) });
+          refreshBegegnung();
+        };
+        z2.appendChild(pill);
+      });
+      var addZ = h('<button class="btn btn-sm btn-subtle">+ Zustand</button>');
+      addZ.onclick = function () { openZustaende(e); };
+      z2.appendChild(addZ);
+      inst.appendChild(z2);
+
+      panel.appendChild(inst);
     });
+  }
+
+  function openZustaende(e) {
+    var overlay = h('<div class="overlay"></div>');
+    var modal = h('<div class="modal" style="max-width:460px"></div>');
+    var head = h('<div class="modal-head"><h2>Zustände — ' + esc(e.label) + '</h2></div>');
+    var close = h('<button class="btn btn-sm no-print">Fertig</button>'); close.onclick = closeZustaende;
+    head.appendChild(close); modal.appendChild(head);
+    var body = h('<div class="modal-body"></div>');
+    var chips = h('<div class="chip-row"></div>');
+    ZUSTAENDE_PRESETS.forEach(function (z) {
+      var aktiv = (e.zustaende || []).indexOf(z) >= 0;
+      var chip = h('<span class="chip' + (aktiv ? " active" : "") + '">' + z + '</span>');
+      chip.onclick = function () {
+        var cur = S.begegnungLoad().filter(function (x) { return x.id === e.id; })[0];
+        if (!cur) return;
+        var zs = cur.zustaende || [];
+        zs = zs.indexOf(z) >= 0 ? zs.filter(function (x) { return x !== z; }) : zs.concat([z]);
+        S.begegnungUpdate(e.id, { zustaende: zs });
+        e.zustaende = zs;
+        chip.classList.toggle("active");
+        refreshBegegnung();
+      };
+      chips.appendChild(chip);
+    });
+    body.appendChild(h('<div class="help" style="margin-bottom:6px">Häufige Zustände (an-/abwählen). Eigene unten ergänzen.</div>'));
+    body.appendChild(chips);
+    var row = h('<div class="inline" style="margin-top:10px"></div>');
+    var inp = h('<input type="text" placeholder="Eigener Zustand…" style="max-width:240px"/>');
+    var addBtn = h('<button class="btn btn-sm">Hinzufügen</button>');
+    addBtn.onclick = function () {
+      var v = inp.value.trim(); if (!v) return;
+      var cur = S.begegnungLoad().filter(function (x) { return x.id === e.id; })[0]; if (!cur) return;
+      var zs = (cur.zustaende || []);
+      if (zs.indexOf(v) < 0) zs = zs.concat([v]);
+      S.begegnungUpdate(e.id, { zustaende: zs }); e.zustaende = zs;
+      inp.value = ""; refreshBegegnung(); closeZustaende(); openZustaende(e);
+    };
+    inp.addEventListener("keydown", function (ev) { if (ev.key === "Enter") addBtn.onclick(); });
+    row.appendChild(inp); row.appendChild(addBtn);
+    body.appendChild(row);
+    modal.appendChild(body);
+    overlay.appendChild(modal);
+    overlay.addEventListener("click", function (ev) { if (ev.target === overlay) closeZustaende(); });
+    document.addEventListener("keydown", escCloseZustaende);
+    document.body.appendChild(overlay); overlay.id = "zustaende-overlay";
+  }
+  function escCloseZustaende(ev) { if (ev.key === "Escape") closeZustaende(); }
+  function closeZustaende() {
+    var o = document.getElementById("zustaende-overlay");
+    if (o) o.remove();
+    document.removeEventListener("keydown", escCloseZustaende);
   }
 
   function openMonster(m) {
@@ -1166,7 +1261,7 @@
     var head = h('<div class="modal-head"><h2>' + esc(m.name) + ' <span class="muted" style="font-weight:400;font-size:14px">· ' + esc(m.gruppe) + ' · ' + esc(m.gk) + '</span></h2></div>');
     var hb = h('<div class="inline no-print"></div>');
     var addBtn = h('<button class="btn btn-sm btn-primary">+ Begegnung</button>');
-    addBtn.onclick = function () { S.begegnungAdd(m.slug, 1); toast(m.name + " hinzugefügt."); refreshBegegnung(); };
+    addBtn.onclick = function () { S.begegnungAddInstanz(m, 1); toast(m.name + " hinzugefügt."); refreshBegegnung(); };
     hb.appendChild(addBtn);
     hb.appendChild(h('<a class="btn btn-sm" href="' + m.ref + '" target="_blank" rel="noopener">↗ Regeln</a>'));
     var close = h('<button class="btn btn-sm">Schließen ✕</button>'); close.onclick = closeMonster;

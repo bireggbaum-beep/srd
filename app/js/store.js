@@ -125,21 +125,42 @@
     }
   }
 
-  // ---- Begegnung (Encounter für den SL) ------------------------------------
-  var BKEY = "ds4_begegnung_v1";
+  // ---- Begegnung (Kampf-Manager für den SL) --------------------------------
+  // Instanz-basiert: jede Kreatur ist ein einzeln verwaltbarer Eintrag
+  //   { id, slug, label, lkMax, lk, zustaende:[String], tot:Bool, notiz }
+  var BKEY = "ds4_begegnung_v2"; // v2: Instanzen statt {slug,count}
   function begegnungLoad() {
-    try { var r = localStorage.getItem(BKEY); return r ? JSON.parse(r) : []; }
+    try { var r = JSON.parse(localStorage.getItem(BKEY)) || []; return r.filter(function (x) { return x && x.id; }); }
     catch (e) { return []; }
   }
   function begegnungSave(list) { localStorage.setItem(BKEY, JSON.stringify(list)); }
-  function begegnungAdd(slug, delta) {
+  function begegnungClear() { begegnungSave([]); }
+
+  // Fügt n Instanzen eines Monsters hinzu (mit fortlaufender Nummerierung).
+  function begegnungAddInstanz(m, n) {
     var list = begegnungLoad();
-    var e = list.filter(function (x) { return x.slug === slug; })[0];
-    if (e) { e.count += (delta || 1); } else if ((delta || 1) > 0) { list.push({ slug: slug, count: (delta || 1) }); }
-    list = list.filter(function (x) { return x.count > 0; });
+    n = n || 1;
+    var vorhanden = list.filter(function (x) { return x.slug === m.slug; }).length;
+    for (var i = 0; i < n; i++) {
+      list.push({
+        id: "b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        slug: m.slug,
+        label: m.name + " " + (vorhanden + i + 1),
+        lkMax: m.kw.lk, lk: m.kw.lk,
+        zustaende: [], tot: false, notiz: ""
+      });
+    }
     begegnungSave(list); return list;
   }
-  function begegnungClear() { begegnungSave([]); }
+  function begegnungUpdate(id, patch) {
+    var list = begegnungLoad();
+    var e = list.filter(function (x) { return x.id === id; })[0];
+    if (e) { for (var k in patch) e[k] = patch[k]; begegnungSave(list); }
+    return list;
+  }
+  function begegnungRemove(id) {
+    begegnungSave(begegnungLoad().filter(function (x) { return x.id !== id; }));
+  }
 
   global.DS_STORE = {
     load: load,
@@ -155,7 +176,9 @@
     seedIfEmpty: seedIfEmpty,
     begegnungLoad: begegnungLoad,
     begegnungSave: begegnungSave,
-    begegnungAdd: begegnungAdd,
+    begegnungAddInstanz: begegnungAddInstanz,
+    begegnungUpdate: begegnungUpdate,
+    begegnungRemove: begegnungRemove,
     begegnungClear: begegnungClear
   };
 })(typeof window !== "undefined" ? window : this);
