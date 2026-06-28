@@ -581,34 +581,7 @@
     box.appendChild(pl);
 
     // TP / Talente
-    var pt = h('<div class="panel"></div>');
-    pt.appendChild(h('<h2>Talente <span class="muted">(' + c.konten.tpOffen + ' TP offen)</span> <a class="deeplink" href="' + R.deeplinks.talente + '" target="_blank" rel="noopener">↗ Regeln</a></h2>'));
-    if (c.talente.length) {
-      var tt = h('<table></table>');
-      tt.appendChild(h('<tr><th>Talent</th><th class="num">Rang</th><th></th></tr>'));
-      c.talente.forEach(function (t) {
-        var tr = h('<tr><td>' + esc(t.name) + '</td><td class="num">' + roman(t.rang) + ' (' + t.rang + ')</td><td class="right"></td></tr>');
-        var up = h('<button class="btn btn-sm" ' + (c.konten.tpOffen < 1 ? "disabled" : "") + '>+1 Rang (1 TP)</button>');
-        up.onclick = function () { try { E.talentLernen(c, t.name); S.upsert(c); toast(t.name + " erhöht."); render(); } catch (e) { toast(e.message); } };
-        tr.querySelector("td.right").appendChild(up);
-        tt.appendChild(tr);
-      });
-      pt.appendChild(tt);
-    } else {
-      pt.appendChild(h('<div class="muted">Noch keine Talente gelernt.</div>'));
-    }
-    var talRow = h('<div class="inline" style="margin-top:10px"></div>');
-    var talInput = h('<input type="text" id="tal-input" placeholder="Talentname (z.B. Schütze)" style="max-width:260px"/>');
-    var talBtn = h('<button class="btn" ' + (c.konten.tpOffen < 1 ? "disabled" : "") + '>Talent lernen (1 TP)</button>');
-    talBtn.onclick = function () {
-      var name = talInput.value.trim();
-      if (!name) { toast("Talentname eingeben."); return; }
-      try { E.talentLernen(c, name); S.upsert(c); toast("Talent „" + name + "“ gelernt."); render(); } catch (e) { toast(e.message); }
-    };
-    talRow.appendChild(talInput); talRow.appendChild(talBtn);
-    pt.appendChild(talRow);
-    pt.appendChild(h('<div class="help">Talente haben klassen-/stufengebundene Voraussetzungen und Ränge I–X (siehe SRD). Voraussetzungs-Prüfung folgt mit der strukturierten Talentliste — derzeit frei eintragbar.</div>'));
-    box.appendChild(pt);
+    box.appendChild(tabTalente(c));
 
     // Zauber (Zauberwirker)
     if (E.istZauberwirker(c)) {
@@ -777,6 +750,127 @@
     box.appendChild(list);
     box.appendChild(h('<div class="help" style="margin-top:12px">Tipp: „Export JSON“ lädt den Charakter herunter; committe ihn ins Repo, um jeden Aufstieg dauerhaft zu versionieren.</div>'));
     return box;
+  }
+
+  // ---- Talente-Panel (datengetrieben, mit klickbarer Beschreibung) ---------
+  function tabTalente(c) {
+    var hatDaten = !!(R.talente && R.talente.length);
+    var pt = h('<div class="panel"></div>');
+    pt.appendChild(h('<h2>Talente <span class="muted">(' + c.konten.tpOffen + ' TP offen)</span> ' +
+      '<a class="deeplink" href="' + R.deeplinks.talente + '" target="_blank" rel="noopener">↗ Regeln</a></h2>'));
+
+    // Bereits gelernte Talente
+    if (c.talente.length) {
+      var tt = h('<table></table>');
+      tt.appendChild(h('<tr><th>Talent</th><th class="num">Rang</th><th></th></tr>'));
+      c.talente.forEach(function (t) {
+        var def = hatDaten ? E.talentDef(t.name) : null;
+        var z = def ? E.talentZugang(c, def) : null;
+        var maxR = z ? z.rang : null;
+        var tr = h('<tr></tr>');
+        var nameCell = h('<td></td>');
+        if (def) {
+          var link = h('<a style="cursor:pointer">' + esc(t.name) + ' ℹ</a>');
+          link.onclick = function () { openTalent(def, c); };
+          nameCell.appendChild(link);
+        } else { nameCell.textContent = t.name; }
+        tr.appendChild(nameCell);
+        tr.appendChild(h('<td class="num">' + roman(t.rang) + (maxR ? ' <span class="muted">/ ' + roman(maxR) + '</span>' : '') + '</td>'));
+        var actCell = h('<td class="right"></td>');
+        var p = def ? E.talentVerfuegbar(c, def) : { ok: c.konten.tpOffen >= 1 };
+        var up = h('<button class="btn btn-sm"' + (p.ok ? "" : ' disabled title="' + esc(p.grund || "") + '"') + '>+1 Rang (1 TP)</button>');
+        up.onclick = function () { try { E.talentLernen(c, t.name); S.upsert(c); toast(t.name + " auf Rang " + E.aktuellerRang(c, t.name) + "."); render(); } catch (e) { toast(e.message); } };
+        actCell.appendChild(up);
+        tr.appendChild(actCell);
+        tt.appendChild(tr);
+      });
+      pt.appendChild(tt);
+    } else {
+      pt.appendChild(h('<div class="muted">Noch keine Talente gelernt.</div>'));
+    }
+
+    if (!hatDaten) {
+      // Fallback: freie Eingabe (sollte nicht passieren, Daten sind eingebunden)
+      var talRow = h('<div class="inline" style="margin-top:10px"></div>');
+      var talInput = h('<input type="text" placeholder="Talentname" style="max-width:260px"/>');
+      var talBtn = h('<button class="btn" ' + (c.konten.tpOffen < 1 ? "disabled" : "") + '>Talent lernen (1 TP)</button>');
+      talBtn.onclick = function () { var n = talInput.value.trim(); if (!n) return; try { E.talentLernen(c, n); S.upsert(c); render(); } catch (e) { toast(e.message); } };
+      talRow.appendChild(talInput); talRow.appendChild(talBtn);
+      pt.appendChild(talRow);
+      return pt;
+    }
+
+    // Auswahl lernbarer Talente (Voraussetzung erfüllt, Rang noch offen)
+    pt.appendChild(h('<h3>Neues Talent lernen</h3>'));
+    var lernbar = R.talente.filter(function (t) {
+      var z = E.talentZugang(c, t);
+      return z && c.stufe >= z.ab && E.aktuellerRang(c, t.name) < z.rang;
+    });
+    if (!lernbar.length) {
+      pt.appendChild(h('<div class="muted">Derzeit keine weiteren Talente verfügbar (Stufe/Rang).</div>'));
+      return pt;
+    }
+
+    var sel = h('<select style="max-width:320px"></select>');
+    lernbar.forEach(function (t) {
+      var z = E.talentZugang(c, t);
+      var cur = E.aktuellerRang(c, t.name);
+      sel.appendChild(h('<option value="' + esc(t.name) + '">' + esc(t.name) +
+        ' — ab ' + z.ab + ', Rang ' + cur + '/' + z.rang + '</option>'));
+    });
+    var descBox = h('<div class="help" style="margin:8px 0;min-height:1.2em"></div>');
+    var infoBtn = h('<button class="btn btn-sm btn-subtle">ℹ Beschreibung</button>');
+    var learnBtn = h('<button class="btn btn-primary btn-sm"' + (c.konten.tpOffen < 1 ? ' disabled title="Kein TP offen"' : "") + '>Lernen (1 TP)</button>');
+    function refreshDesc() {
+      var t = E.talentDef(sel.value);
+      descBox.textContent = t ? t.beschreibung : "";
+    }
+    sel.addEventListener("change", refreshDesc);
+    infoBtn.onclick = function () { var t = E.talentDef(sel.value); if (t) openTalent(t, c); };
+    learnBtn.onclick = function () {
+      try { E.talentLernen(c, sel.value); S.upsert(c); toast("Talent „" + sel.value + "“ gelernt."); render(); }
+      catch (e) { toast(e.message); }
+    };
+    var row = h('<div class="inline" style="margin-top:6px;flex-wrap:wrap"></div>');
+    row.appendChild(sel); row.appendChild(infoBtn); row.appendChild(learnBtn);
+    pt.appendChild(row);
+    pt.appendChild(descBox);
+    refreshDesc();
+    return pt;
+  }
+
+  // Talent-Beschreibung als Overlay lesen.
+  function openTalent(t, c) {
+    var z = c ? E.talentZugang(c, t) : null;
+    var zugaenge = Object.keys(t.zugang || {}).map(function (k) {
+      var e = t.zugang[k];
+      return '<span class="pill">' + esc(k) + ' ' + e.ab + ' (' + roman(e.rang) + ')</span>';
+    }).join("");
+    var overlay = h('<div class="overlay"></div>');
+    var modal = h('<div class="modal" style="max-width:560px"></div>');
+    var head = h('<div class="modal-head"><h2>' + esc(t.name) + '</h2></div>');
+    var hb = h('<div class="inline no-print"></div>');
+    var ref = h('<a class="btn btn-sm" href="' + t.ref + '" target="_blank" rel="noopener">↗ Regeln</a>');
+    var close = h('<button class="btn btn-sm">Schließen ✕</button>');
+    close.onclick = closeTalent;
+    hb.appendChild(ref); hb.appendChild(close); head.appendChild(hb);
+    modal.appendChild(head);
+    var bodyHtml = '<div class="sheet-section"><div style="white-space:pre-line;margin-bottom:14px">' + esc(t.beschreibung) + '</div>';
+    if (z) bodyHtml += '<div class="help">Für ' + esc(c.klasse) + (c.unterklasse ? "/" + esc(c.unterklasse) : "") +
+      ': ab Stufe <b>' + z.ab + '</b>, Maximalrang <b>' + roman(z.rang) + '</b>.</div>';
+    bodyHtml += '<h3 style="margin-top:14px">Zugangsstufen</h3><div>' + zugaenge + '</div></div>';
+    modal.appendChild(h('<div class="modal-body">' + bodyHtml + '</div>'));
+    overlay.appendChild(modal);
+    overlay.addEventListener("click", function (ev) { if (ev.target === overlay) closeTalent(); });
+    document.addEventListener("keydown", escCloseTalent);
+    document.body.appendChild(overlay);
+    overlay.id = "talent-overlay";
+  }
+  function escCloseTalent(ev) { if (ev.key === "Escape") closeTalent(); }
+  function closeTalent() {
+    var o = document.getElementById("talent-overlay");
+    if (o) o.remove();
+    document.removeEventListener("keydown", escCloseTalent);
   }
 
   // ---- Gesamtansicht (Steckbrief, alles auf einen Blick) -------------------
