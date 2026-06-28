@@ -262,31 +262,17 @@
     }
   }
 
+  // Zauber: füllt das kumulierte Lern-Budget mit zugänglichen Sprüchen der
+  // Unterklasse (Zugangs-/Budgetprüfung über die Engine).
   function generateZauber(char) {
     var Z = R.zauber;
-    if (!Z || !Z.length || !E.istZauberwirker(char)) return; // noch keine Zauberdaten
-    var art = char.unterklasse; // Heiler/Zauberer/Schwarzmagier
-    // Zugängliche Sprüche bis zur aktuellen Stufe.
-    var pool = Z.filter(function (z) {
-      var klassenOk = !z.klassen || z.klassen.indexOf(art) >= 0;
-      return klassenOk && (z.stufe || 1) <= char.stufe;
-    });
-    if (!pool.length) return;
-    // Budget: pro erreichter Stufe ist die Stufensumme neuer Sprüche <= Stufe.
-    // Vereinfacht für die Generierung: kumuliertes Budget = Summe(1..stufe).
-    var budget = 0;
-    for (var s = 1; s <= char.stufe; s++) budget += s;
-    var verbleibend = budget - E.zauberStufensumme(char);
+    if (!Z || !Z.length || !E.istZauberwirker(char)) return;
     var guard = 0;
-    while (verbleibend > 0 && guard++ < 300) {
-      var bezahlbar = pool.filter(function (z) {
-        return (z.stufe || 1) <= verbleibend &&
-          !char.zauber.some(function (g) { return g.name === z.name; });
-      });
-      if (!bezahlbar.length) break;
-      var pick = choice(bezahlbar);
-      E.zauberLernen(char, pick.name, pick.stufe || 1);
-      verbleibend -= (pick.stufe || 1);
+    while (guard++ < 400) {
+      var moeglich = Z.filter(function (z) { return E.zauberVerfuegbar(char, z).ok; });
+      if (!moeglich.length) break;
+      try { E.zauberLernen(char, choice(moeglich).name); }
+      catch (e) { break; }
     }
   }
 
