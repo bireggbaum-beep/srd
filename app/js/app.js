@@ -1054,8 +1054,8 @@
     wrap.appendChild(h('<h2 style="margin:0 0 4px">🐉 Bestiarium <span class="muted">(' + monster.length + ' Kreaturen)</span></h2>'));
     wrap.appendChild(h('<div class="help" style="margin-bottom:6px">Karte anklicken = zur Begegnung hinzufügen · ℹ = Statblock lesen.</div>'));
 
-    // --- Begegnung (Encounter) ---
-    wrap.appendChild(renderBegegnung());
+    // --- Begegnung (kompakt, oben) ---
+    wrap.appendChild(begegnungPanel(true));
 
     // --- Quick-Filter (Gruppen) + Suche ---
     var chips = h('<div class="chip-row"></div>');
@@ -1114,14 +1114,29 @@
     box.appendChild(grid);
   }
 
-  function renderBegegnung() {
-    var panel = h('<div class="panel encounter" id="begegnung"></div>');
+  // Panel-Baustein. sticky=true für die kompakte Anzeige im Bestiarium-Tab.
+  function begegnungPanel(sticky) {
+    var panel = h('<div class="panel ' + (sticky ? "encounter" : "encounter-full") + '" id="begegnung"></div>');
     fillBegegnung(panel);
     return panel;
   }
   function refreshBegegnung() {
     var p = document.getElementById("begegnung");
     if (p) { p.innerHTML = ""; fillBegegnung(p); }
+  }
+
+  // Eigener Tab: Begegnung im Vordergrund (Kampf-Manager, ohne Monsterliste).
+  function renderBegegnung() {
+    var wrap = h('<div></div>');
+    var head = h('<div class="inline" style="justify-content:space-between;width:100%;margin-bottom:10px"></div>');
+    head.appendChild(h('<h2 style="margin:0">⚔️ Begegnung</h2>'));
+    var addBtn = h('<button class="btn btn-primary">+ Monster aus dem Bestiarium</button>');
+    addBtn.onclick = function () { go("monster"); };
+    head.appendChild(addBtn);
+    wrap.appendChild(head);
+    wrap.appendChild(begegnungPanel(false));
+    wrap.appendChild(h('<div class="help" style="margin-top:10px">Tipp: Monster fügst du im Tab „🐉 Monster" hinzu — die Begegnung bleibt dort oben sichtbar.</div>'));
+    app.appendChild(wrap);
   }
   var ZUSTAENDE_PRESETS = ["Geblendet", "Schlafend", "Vergiftet", "Brennend", "Verlangsamt", "Gelähmt", "Niedergeschlagen", "Bewusstlos", "In Furcht", "Festgehalten", "Verwirrt", "Stumm"];
 
@@ -1143,7 +1158,7 @@
     panel.appendChild(head);
 
     if (!list.length) {
-      panel.appendChild(h('<div class="muted" style="margin-top:6px">Noch keine Monster. Unten eine Karte anklicken.</div>'));
+      panel.appendChild(h('<div class="muted" style="margin-top:6px">Noch keine Monster — im Tab „🐉 Monster" eine Karte anklicken.</div>'));
       return;
     }
 
@@ -1160,9 +1175,11 @@
       z1.appendChild(name);
       z1.appendChild(h('<span class="lkval" style="color:' + farbe + '">LK ' + Math.max(0, e.lk) + '/' + e.lkMax + '</span>'));
 
+      // LK-Steuerung (Gruppe): Eingabe + Schaden + Heilen
+      var hp = h('<div class="enc-grp"></div>');
       var dmg = h('<input type="number" class="dmg" placeholder="±" title="Schaden/Heilung" />');
-      var bDmg = h('<button class="btn btn-sm" title="Schaden abziehen">💥</button>');
-      var bHeal = h('<button class="btn btn-sm" title="heilen">＋</button>');
+      var bDmg = h('<button class="btn enc-btn" title="Schaden abziehen">💥</button>');
+      var bHeal = h('<button class="btn enc-btn" title="heilen">＋</button>');
       function applyLk(sign) {
         var v = parseInt(dmg.value, 10);
         if (isNaN(v) || v <= 0) { v = 1; }
@@ -1175,13 +1192,17 @@
       bDmg.onclick = function () { applyLk(-1); };
       bHeal.onclick = function () { applyLk(1); };
       dmg.addEventListener("keydown", function (ev) { if (ev.key === "Enter") applyLk(-1); });
-      z1.appendChild(dmg); z1.appendChild(bDmg); z1.appendChild(bHeal);
+      hp.appendChild(dmg); hp.appendChild(bDmg); hp.appendChild(bHeal);
+      z1.appendChild(hp);
 
-      var bTot = h('<button class="btn btn-sm" title="' + (e.tot ? "wiederbeleben" : "als kampfunfähig markieren") + '">' + (e.tot ? "↺" : "💀") + '</button>');
+      // Status-Steuerung (abgesetzte Gruppe rechts): kampfunfähig + entfernen
+      var dg = h('<div class="enc-grp enc-danger"></div>');
+      var bTot = h('<button class="btn enc-btn" title="' + (e.tot ? "wiederbeleben" : "als kampfunfähig markieren") + '">' + (e.tot ? "↺" : "💀") + '</button>');
       bTot.onclick = function () { S.begegnungUpdate(e.id, { tot: !e.tot, lk: e.tot && e.lk <= 0 ? e.lkMax : e.lk }); refreshBegegnung(); };
-      var del = h('<button class="btn btn-sm btn-danger" title="entfernen">✕</button>');
+      var del = h('<button class="btn enc-btn btn-danger" title="entfernen">✕</button>');
       del.onclick = function () { S.begegnungRemove(e.id); refreshBegegnung(); };
-      z1.appendChild(bTot); z1.appendChild(del);
+      dg.appendChild(bTot); dg.appendChild(del);
+      z1.appendChild(dg);
       inst.appendChild(z1);
 
       // Zeile 2: Zustände
@@ -1306,6 +1327,7 @@
     if (state.view === "create") renderCreate();
     else if (state.view === "generator") renderGenerator();
     else if (state.view === "monster") renderMonster();
+    else if (state.view === "begegnung") renderBegegnung();
     else if (state.view === "sheet") renderSheet();
     else renderRoster();
   }
@@ -1315,6 +1337,7 @@
     document.getElementById("nav-home").onclick = function () { go("roster"); };
     document.getElementById("nav-roster").onclick = function () { go("roster"); };
     document.getElementById("nav-monster").onclick = function () { go("monster"); };
+    document.getElementById("nav-begegnung").onclick = function () { go("begegnung"); };
     document.getElementById("nav-create").onclick = function () { startCreate(); };
     var fileInput = document.getElementById("import-file");
     document.getElementById("nav-import").onclick = function () { fileInput.click(); };
