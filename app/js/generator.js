@@ -1,0 +1,217 @@
+/*
+ * DS_GEN — Zufalls-Charaktergenerator für Dungeonslayers (DS4)
+ * ===========================================================
+ *
+ * Erzeugt regelkonforme Charaktere, indem es die bestehende Engine
+ * wiederverwendet (keine eigene Regel-Logik, damit nichts auseinanderläuft):
+ *   1. zufällige, gültige Erschaffung  -> DS_ENGINE.erschaffeChar
+ *   2. auf Zielstufe bringen           -> DS_ENGINE.epEintragen
+ *   3. Lernpunkte regelkonform ausgeben -> DS_ENGINE.lpAusgeben (+ Cap-Prüfung)
+ *   4. Talente / Zauber                -> generateTalente / generateZauber
+ *
+ * Jedes Feld kann fest vorgegeben ODER auf "zufällig" (Wert null/"zufall")
+ * gesetzt werden: Volk, Klasse, Unterklasse, Stufe, Geschlecht, Name.
+ *
+ * ERWEITERBARKEIT (Talente & Zauber):
+ *   generateTalente() und generateZauber() sind bereits verdrahtet, ruhen aber,
+ *   solange DS_REGELN.talente bzw. DS_REGELN.zauber fehlen. Sobald diese
+ *   Datentabellen existieren (geplante Schemata siehe unten), vergeben sie
+ *   automatisch TP an gültige Talente bzw. füllen das Zauber-Budget — ohne
+ *   Änderung am Generator-Aufruf.
+ */
+(function (global) {
+  "use strict";
+
+  var R = global.DS_REGELN;
+  var E = global.DS_ENGINE;
+
+  // ---- Zufalls-Helfer ------------------------------------------------------
+  function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+  function choice(arr) { return arr[randInt(0, arr.length - 1)]; }
+  function weightedChoice(items) { // items: [{ v, w }]
+    var total = items.reduce(function (s, i) { return s + i.w; }, 0);
+    var r = Math.random() * total;
+    for (var i = 0; i < items.length; i++) { r -= items[i].w; if (r <= 0) return items[i].v; }
+    return items[items.length - 1].v;
+  }
+
+  // Verteilt 'total' Punkte zufällig & gültig auf 'keys' (je min..max).
+  function verteile(total, keys, min, max) {
+    var out = {};
+    keys.forEach(function (k) { out[k] = min; });
+    var rest = total - min * keys.length;
+    var guard = 0;
+    while (rest > 0 && guard++ < 1000) {
+      var offen = keys.filter(function (k) { return out[k] < max; });
+      if (!offen.length) break;
+      out[choice(offen)] += 1;
+      rest--;
+    }
+    return out;
+  }
+
+  // ---- Namens-Pool (reine Flavor-Daten, keine Regeln) ----------------------
+  var NAMEN = {
+    Elf:    ["Aelar", "Caelynn", "Faelar", "Illyra", "Jherrant", "Lios", "Mirae", "Sylvaris", "Thalionel", "Yllithra"],
+    Mensch: ["Aldric", "Brenna", "Cedric", "Dara", "Gerwulf", "Halsten", "Kalthor", "Mara", "Roderick", "Wynn"],
+    Zwerg:  ["Borin", "Dwalish", "Gruffneck", "Harngrim", "Korbin", "Morgran", "Nalda", "Thrain", "Vesna", "Durgan"]
+  };
+  function zufallsName(volk) { return choice(NAMEN[volk] || NAMEN.Mensch); }
+
+  // =========================================================================
+  // Hauptfunktion
+  // =========================================================================
+  // opt = { name, geschlecht, volk, klasse, unterklasse, stufe }
+  //   - fehlend / null / "zufall"  => zufällig
+  //   - stufe: Zahl 1..20 oder zufällig
+  function generate(opt) {
+    opt = opt || {};
+    function fix(val, randFn) {
+      return (val === null || val === undefined || val === "" || val === "zufall") ? randFn() : val;
+    }
+
+    var volk = fix(opt.volk, function () { return choice(Object.keys(R.voelker)); });
+    var klasse = fix(opt.klasse, function () { return choice(Object.keys(R.klassen)); });
+    var klasseDef = R.klassen[klasse];
+
+    var unterklasse = null;
+    if (klasseDef.zauberwirker) {
+      unterklasse = fix(opt.unterklasse, function () { return choice(klasseDef.unterklassen); });
+    }
+
+    var geschlecht = fix(opt.geschlecht, function () { return choice(["männlich", "weiblich"]); });
+    var name = fix(opt.name, function () { return zufallsName(volk); });
+    var stufe = parseInt(fix(opt.stufe, function () { return randInt(1, 20); }), 10);
+    if (isNaN(stufe) || stufe < 1) stufe = 1;
+    if (stufe > 20) stufe = 20;
+
+    // 1) Zufällige, gültige Erschaffung (Attribute 4..8 = 20, Eigensch. 0..4 = 8)
+    var volkDef = R.voelker[volk];
+    var eingaben = {
+      name: name, geschlecht: geschlecht, volk: volk, klasse: klasse, unterklasse: unterklasse,
+      attribute: verteile(R.erschaffung.attributPunkte, ["koer", "agi", "gei"], 4, R.erschaffung.attributMax),
+      eigenschaftenRoh: verteile(R.erschaffung.eigenschaftPunkte, ["st", "hae", "be", "ge", "ve", "au"], 0, R.erschaffung.eigenschaftMaxStart),
+      volksbonus: choice(volkDef.bonusWahl),
+      klassenbonus: choice(klasseDef.bonusWahl),
+      capWahl: volk === "Mensch" ? zufallsCapWahl() : null
+    };
+    var char = E.erschaffeChar(eingaben);
+
+    // 2) Auf Zielstufe bringen (EP = Schwelle der Zielstufe; verbucht LP/TP)
+    if (stufe > 1) {
+      var ep = E.epSchwelle(stufe, char.heldenklasse);
+      E.epEintragen(char, ep);
+    }
+
+    // 3) Lernpunkte regelkonform ausgeben (Caps werden von der Engine geprüft)
+    verteileLernpunkte(char);
+
+    // 4) Talente & Zauber (ruhen, bis ihre Datentabellen existieren)
+    generateTalente(char);
+    generateZauber(char);
+
+    E.log(char, "Zufallsgenerator", "automatisch erzeugt (Stufe " + char.stufe + ")");
+    return char;
+  }
+
+  function zufallsCapWahl() {
+    var eig = ["st", "hae", "be", "ge", "ve", "au"];
+    var cw = { st: 0, hae: 0, be: 0, ge: 0, ve: 0, au: 0 };
+    if (Math.random() < 0.5) { // 1 Eigenschaft +2
+      cw[choice(eig)] = 2;
+    } else { // 2 verschiedene Eigenschaften +1
+      var a = choice(eig); var b; do { b = choice(eig); } while (b === a);
+      cw[a] = 1; cw[b] = 1;
+    }
+    return cw;
+  }
+
+  // Gibt offene LP aus: bevorzugt günstige (klassentypische) Eigenschaften,
+  // LK als Lückenfüller. Nutzt die Engine-Prüfung -> nie über Cap.
+  function verteileLernpunkte(char) {
+    var ziele = ["st", "hae", "be", "ge", "ve", "au", "lk"];
+    var guard = 0;
+    while (guard++ < 500) {
+      var kandidaten = [];
+      ziele.forEach(function (z) {
+        var p = E.pruefeLpAusgabe(char, z);
+        if (!p.ok) return;
+        // Gewicht: billiger = wahrscheinlicher; LK nur als Füller
+        var w = z === "lk" ? 1 : (7 - E.lpKosten(char, z) * 2); // Kosten 2 -> w3, Kosten 3 -> w1
+        if (w < 1) w = 1;
+        kandidaten.push({ v: z, w: w });
+      });
+      if (!kandidaten.length) break;
+      E.lpAusgeben(char, weightedChoice(kandidaten));
+    }
+  }
+
+  // =========================================================================
+  // HOOKS für Talente & Zauber — dormant bis Datentabellen existieren
+  // =========================================================================
+  // Erwartetes Schema (siehe PROJEKT §5):
+  //   DS_REGELN.talente = [ { name, voraussetzungen: { <Klasse>: minStufe, ... }, maxRang, ... } ]
+  //   DS_REGELN.zauber  = [ { name, stufe, klassen: [ "Heiler", ... ], ... } ]
+  function generateTalente(char) {
+    var T = R.talente;
+    if (!T || !T.length) return; // noch keine Talentdaten -> TP bleiben gespart
+    var guard = 0;
+    while ((char.konten.tpOffen || 0) > 0 && guard++ < 300) {
+      var moeglich = T.filter(function (t) { return talentMoeglich(char, t); });
+      if (!moeglich.length) break;
+      try { E.talentLernen(char, choice(moeglich).name); }
+      catch (e) { break; }
+    }
+  }
+
+  function talentMoeglich(char, t) {
+    var vs = t.voraussetzungen || {};
+    // Nicht gelistete Klassen können das Talent gar nicht lernen.
+    var klasse = char.heldenklasse || char.klasse;
+    var minStufe = vs[char.klasse]; // Grundklasse maßgeblich (Heldenklassen erben sie)
+    if (minStufe == null && char.unterklasse != null) minStufe = vs[char.unterklasse];
+    if (minStufe == null && klasse !== char.klasse) minStufe = vs[klasse];
+    if (minStufe == null || char.stufe < minStufe) return false;
+    if (t.maxRang) {
+      var cur = (char.talente.filter(function (x) { return x.name === t.name; })[0] || {}).rang || 0;
+      if (cur >= t.maxRang) return false;
+    }
+    return true;
+  }
+
+  function generateZauber(char) {
+    var Z = R.zauber;
+    if (!Z || !Z.length || !E.istZauberwirker(char)) return; // noch keine Zauberdaten
+    var art = char.unterklasse; // Heiler/Zauberer/Schwarzmagier
+    // Zugängliche Sprüche bis zur aktuellen Stufe.
+    var pool = Z.filter(function (z) {
+      var klassenOk = !z.klassen || z.klassen.indexOf(art) >= 0;
+      return klassenOk && (z.stufe || 1) <= char.stufe;
+    });
+    if (!pool.length) return;
+    // Budget: pro erreichter Stufe ist die Stufensumme neuer Sprüche <= Stufe.
+    // Vereinfacht für die Generierung: kumuliertes Budget = Summe(1..stufe).
+    var budget = 0;
+    for (var s = 1; s <= char.stufe; s++) budget += s;
+    var verbleibend = budget - E.zauberStufensumme(char);
+    var guard = 0;
+    while (verbleibend > 0 && guard++ < 300) {
+      var bezahlbar = pool.filter(function (z) {
+        return (z.stufe || 1) <= verbleibend &&
+          !char.zauber.some(function (g) { return g.name === z.name; });
+      });
+      if (!bezahlbar.length) break;
+      var pick = choice(bezahlbar);
+      E.zauberLernen(char, pick.name, pick.stufe || 1);
+      verbleibend -= (pick.stufe || 1);
+    }
+  }
+
+  global.DS_GEN = {
+    generate: generate,
+    zufallsName: zufallsName,
+    // exportiert für Tests:
+    _verteile: verteile,
+    _verteileLernpunkte: verteileLernpunkte
+  };
+})(typeof window !== "undefined" ? window : this);
