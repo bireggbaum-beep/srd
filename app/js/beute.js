@@ -87,5 +87,37 @@
     return { ueberschrift: null, zeilen: flatten(draw(tableId, { forcedRoll: opts.forcedRoll })) };
   }
 
-  global.DS_BEUTE = { draw: draw, flatten: flatten, ziehung: ziehung, rollDice: rollDice, rnd: rnd };
+  // ---- Beute aus einem besiegten Monster ----------------------------------
+  // Der SRD-Bestiarium führt keinen Beutewert pro Monster, darum ein
+  // transparentes Profil aus Gruppe + Gegnerhärte (vom SL anpassbar):
+  //   Tabelle: primitive Humanoide -> B, sonstige Humanoide/Untote -> C,
+  //            Magische Wesen/Konstrukte -> M, Tiere/Pflanzen -> A (Münzen).
+  //   Anzahl Funde skaliert mit GH (1–4).
+  var PRIMITIV = ["goblin", "kobold", "ork", "oger", "troll", "gnoll", "hobgoblin", "riese", "echsenmensch", "snaga"];
+  function istPrimitiv(m) {
+    var s = ((m.slug || "") + " " + (m.name || "")).toLowerCase();
+    for (var i = 0; i < PRIMITIV.length; i++) if (s.indexOf(PRIMITIV[i]) >= 0) return true;
+    return false;
+  }
+  function profilFuerMonster(m) {
+    var g = m.gruppe || "", t;
+    if (g === "Humanoide") t = istPrimitiv(m) ? "B" : "C";
+    else if (g === "Untote") t = "C";
+    else if (g === "Magische Wesen" || g === "Konstrukte") t = "M";
+    else t = "A"; // Tiere, Pflanzenwesen
+    var gh = m.gh || 1;
+    var anzahl = gh <= 7 ? 1 : (gh <= 15 ? 2 : (gh <= 23 ? 3 : 4));
+    return { tabelle: t, anzahl: anzahl };
+  }
+  // Würfelt die Beute eines Monsters aus (probenlos, korrekte Anzahl Funde).
+  function lootMonster(m) {
+    var p = profilFuerMonster(m), z = [];
+    for (var i = 0; i < p.anzahl; i++) z.push(ziehung(p.tabelle, {}));
+    return { tabelle: p.tabelle, anzahl: p.anzahl, ziehungen: z };
+  }
+
+  global.DS_BEUTE = {
+    draw: draw, flatten: flatten, ziehung: ziehung, rollDice: rollDice, rnd: rnd,
+    profilFuerMonster: profilFuerMonster, lootMonster: lootMonster
+  };
 })(typeof window !== "undefined" ? window : this);
