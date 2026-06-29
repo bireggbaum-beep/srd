@@ -1217,16 +1217,17 @@
       z1.appendChild(dg);
       inst.appendChild(z1);
 
-      // Kompakte Kampfwerte direkt am Monster (Icons)
+      // Kompakte Kampfwerte direkt am Monster — Stil wie die Bestiarium-Karten
+      // (Label weiß, Wert gold), einheitlich über .mstats.
       if (m) {
         var kw = m.kw || {};
-        var stat = function (icon, titel, val, suffix) {
+        var stat = function (label, titel, val, suffix) {
           if (val == null || val === "") return "";
-          return '<span class="enc-stat" title="' + titel + '">' + icon + ' <b>' + val + (suffix || "") + '</b></span>';
+          return '<span title="' + titel + '">' + label + ' <b>' + val + (suffix || "") + '</b></span>';
         };
-        var statsHtml = stat("⚔️", "Schlagen", kw.schlagen) + stat("🏹", "Schießen", kw.schiessen) +
-          stat("🛡️", "Abwehr", kw.abwehr) + stat("👟", "Laufen", kw.laufen, " m");
-        if (statsHtml) inst.appendChild(h('<div class="enc-stats">' + statsHtml + '</div>'));
+        var statsHtml = stat("Schl", "Schlagen", kw.schlagen) + stat("Schie", "Schießen", kw.schiessen) +
+          stat("Abw", "Abwehr", kw.abwehr) + stat("Lauf", "Laufen", kw.laufen, " m");
+        if (statsHtml) inst.appendChild(h('<div class="enc-stats mstats">' + statsHtml + '</div>'));
       }
 
       // Zeile 2: Zustände
