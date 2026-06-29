@@ -172,6 +172,8 @@ hr.sep { border: none; border-top: 1px solid var(--line); margin: 16px 0; }
 .enc-danger { margin-left: auto; padding-left: 16px; border-left: 1px solid var(--line); }
 .enc-btn { padding: 9px 14px; font-size: 17px; min-width: 46px; line-height: 1; }
 .enc-line1 input.dmg { width: 58px; height: 38px; text-align: center; padding: 4px 6px; font-size: 16px; }
+.enc-stats { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); }
+.enc-stats .enc-stat b { color: var(--ink); font-variant-numeric: tabular-nums; }
 .enc-line2 { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .enc-line2 .pill { font-size: 13px; padding: 4px 11px; }
 .enc-line2 .btn { padding: 5px 11px; }

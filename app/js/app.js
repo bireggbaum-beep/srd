@@ -1217,6 +1217,18 @@
       z1.appendChild(dg);
       inst.appendChild(z1);
 
+      // Kompakte Kampfwerte direkt am Monster (Icons)
+      if (m) {
+        var kw = m.kw || {};
+        var stat = function (icon, titel, val, suffix) {
+          if (val == null || val === "") return "";
+          return '<span class="enc-stat" title="' + titel + '">' + icon + ' <b>' + val + (suffix || "") + '</b></span>';
+        };
+        var statsHtml = stat("⚔️", "Schlagen", kw.schlagen) + stat("🏹", "Schießen", kw.schiessen) +
+          stat("🛡️", "Abwehr", kw.abwehr) + stat("👟", "Laufen", kw.laufen, " m");
+        if (statsHtml) inst.appendChild(h('<div class="enc-stats">' + statsHtml + '</div>'));
+      }
+
       // Zeile 2: Zustände
       var z2 = h('<div class="enc-line2"></div>');
       (e.zustaende || []).forEach(function (z) {
