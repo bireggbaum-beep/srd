@@ -40,7 +40,9 @@
       talente: "https://immersieg.de/grw/talente.html",
       zauber: "https://immersieg.de/grw/zaubersprueche.html",
       ausruestung: "https://immersieg.de/grw/ausruestung.html",
-      heldenklassen: "https://immersieg.de/grw/charaktere-heldenklassen.html"
+      heldenklassen: "https://immersieg.de/grw/charaktere-heldenklassen.html",
+      schaetze: "https://immersieg.de/grw/spielleitung-schaetze.html",
+      beutetabellen: "https://immersieg.de/grw/anhang-beutetabellen.html"
     },
 
     // Die 3 Attribute -> je 2 Eigenschaften
