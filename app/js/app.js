@@ -1152,9 +1152,20 @@
     head.appendChild(h('<h2 style="margin:0">Begegnung <span class="muted">' +
       (list.length ? "(" + lebend.length + "/" + list.length + " aktiv · Σ " + sumEp + " EP · max GH " + maxGh + ")" : "(leer)") + '</span></h2>'));
     if (list.length) {
+      var btns = h('<div class="inline"></div>');
+      var lootbar = list.filter(function (e) { return e.tot && !e.beute; });
+      if (lootbar.length && global.DS_BEUTE && R.beute) {
+        var lootAll = h('<button class="btn btn-sm">💰 Alle looten (' + lootbar.length + ')</button>');
+        lootAll.onclick = function () {
+          lootbar.forEach(function (e) { var m = bySlug[e.slug]; if (m) S.begegnungUpdate(e.id, { beute: global.DS_BEUTE.lootMonster(m) }); });
+          refreshBegegnung();
+        };
+        btns.appendChild(lootAll);
+      }
       var clear = h('<button class="btn btn-sm btn-danger">Leeren</button>');
       clear.onclick = function () { if (confirm("Begegnung leeren?")) { S.begegnungClear(); refreshBegegnung(); } };
-      head.appendChild(clear);
+      btns.appendChild(clear);
+      head.appendChild(btns);
     }
     panel.appendChild(head);
 
@@ -1221,8 +1232,46 @@
       z2.appendChild(addZ);
       inst.appendChild(z2);
 
+      // Zeile 3: Beute (erst wenn besiegt)
+      if (e.tot && global.DS_BEUTE && R.beute && m) {
+        var z3 = h('<div class="enc-loot"></div>');
+        if (!e.beute) {
+          var bl = h('<button class="btn btn-sm">💰 Looten</button>');
+          bl.onclick = function () { lootInstanz(e, m); };
+          z3.appendChild(bl);
+        } else {
+          z3.appendChild(renderLoot(e.beute));
+          var rr = h('<button class="btn btn-sm btn-subtle" title="neu auswürfeln">🎲 neu</button>');
+          rr.onclick = function () { lootInstanz(e, m); };
+          var cl = h('<button class="btn btn-sm" title="Beute entfernen">✕</button>');
+          cl.onclick = function () { S.begegnungUpdate(e.id, { beute: null }); refreshBegegnung(); };
+          var ctr = h('<div class="inline" style="margin-top:4px"></div>');
+          ctr.appendChild(rr); ctr.appendChild(cl);
+          z3.appendChild(ctr);
+        }
+        inst.appendChild(z3);
+      }
+
       panel.appendChild(inst);
     });
+  }
+
+  function lootInstanz(e, m) {
+    var beute = global.DS_BEUTE.lootMonster(m);
+    S.begegnungUpdate(e.id, { beute: beute });
+    refreshBegegnung();
+  }
+
+  // Beute eines Gegners als Block rendern.
+  function renderLoot(beute) {
+    var box = h('<div class="loot-box"></div>');
+    box.appendChild(h('<div class="muted" style="font-size:11px">Beute (Tabelle ' + beute.tabelle + ', ' + beute.anzahl + ' Fund' + (beute.anzahl > 1 ? "e" : "") + ')</div>'));
+    (beute.ziehungen || []).forEach(function (z) {
+      (z.zeilen || []).forEach(function (zl) {
+        box.appendChild(h('<div style="margin-left:' + (zl.tiefe * 14) + 'px;font-size:13px">' + (zl.tiefe ? "" : "• ") + esc(zl.text) + '</div>'));
+      });
+    });
+    return box;
   }
 
   function openZustaende(e) {
@@ -1328,8 +1377,8 @@
     if (!state.beute) state.beute = { tabelle: "C", wuerfe: 1, pw: "", manuell: "" };
     var st = state.beute;
     var p = h('<div class="panel"></div>');
-    p.appendChild(h('<h2>💰 Beute auswürfeln <a class="deeplink" href="' + (R.deeplinks.schaetze || "https://immersieg.de/grw/spielleitung-schaetze.html") + '" target="_blank" rel="noopener">↗ Regeln</a></h2>'));
-    p.appendChild(h('<div class="help" style="margin-bottom:8px">Spieler würfelt W20 selbst und gibt ihn ein — oder „🎲 Auswürfeln" lässt das Tool würfeln und löst Verweise + Münzwürfe automatisch auf. Mit Probenwert (PW) gilt: Wurf ≤ PW = Treffer, Ergebnis = Beutenummer.</div>'));
+    p.appendChild(h('<h2>💰 Freie Beute <span class="muted" style="font-weight:400;font-size:14px">· Truhen & Schätze</span> <a class="deeplink" href="' + (R.deeplinks.schaetze || "https://immersieg.de/grw/spielleitung-schaetze.html") + '" target="_blank" rel="noopener">↗ Regeln</a></h2>'));
+    p.appendChild(h('<div class="help" style="margin-bottom:8px">Für Schätze ohne Gegner (Truhen, Horte). Gegner-Beute kommt direkt beim besiegten Monster oben („💰 Looten"). Spieler würfelt W20 selbst und gibt ihn ein — oder „🎲 Auswürfeln" lässt das Tool würfeln und löst Verweise + Münzwürfe auf. Mit Probenwert (PW): Wurf ≤ PW = Treffer.</div>'));
 
     var chips = h('<div class="chip-row"></div>');
     BEUTE_TABS.forEach(function (tb) {
