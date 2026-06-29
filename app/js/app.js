@@ -1236,13 +1236,21 @@
       if (e.tot && global.DS_BEUTE && R.beute && m) {
         var z3 = h('<div class="enc-loot"></div>');
         if (!e.beute) {
+          var prof = global.DS_BEUTE.profilFuerMonster(m);
+          // Tabelle pro Gegner wählbar (Vorschlag nach Kreaturentyp), Anzahl = BW
+          var lootRow = h('<div class="inline" style="flex-wrap:wrap;gap:6px"></div>');
+          var tsel = h('<select title="Beutetabelle" style="max-width:170px"></select>');
+          BEUTE_TABS.forEach(function (tb) { tsel.appendChild(h('<option value="' + tb[0] + '"' + (prof.tabelle === tb[0] ? " selected" : "") + '>' + tb[1] + ' (' + tb[0] + ')</option>')); });
+          var cnt = h('<input type="number" min="1" value="' + prof.anzahl + '" title="Anzahl Funde" style="width:56px"/>');
           var bl = h('<button class="btn btn-sm">💰 Looten</button>');
-          bl.onclick = function () { lootInstanz(e, m); };
-          z3.appendChild(bl);
+          bl.onclick = function () { lootInstanzMit(e, tsel.value, Math.max(1, parseInt(cnt.value, 10) || 1)); };
+          lootRow.appendChild(h('<span class="enc-meta">Beute:</span>'));
+          lootRow.appendChild(tsel); lootRow.appendChild(cnt); lootRow.appendChild(bl);
+          z3.appendChild(lootRow);
         } else {
           z3.appendChild(renderLoot(e.beute));
           var rr = h('<button class="btn btn-sm btn-subtle" title="neu auswürfeln">🎲 neu</button>');
-          rr.onclick = function () { lootInstanz(e, m); };
+          rr.onclick = function () { lootInstanzMit(e, e.beute.tabelle, e.beute.anzahl); };
           var cl = h('<button class="btn btn-sm" title="Beute entfernen">✕</button>');
           cl.onclick = function () { S.begegnungUpdate(e.id, { beute: null }); refreshBegegnung(); };
           var ctr = h('<div class="inline" style="margin-top:4px"></div>');
@@ -1259,6 +1267,13 @@
   function lootInstanz(e, m) {
     var beute = global.DS_BEUTE.lootMonster(m);
     S.begegnungUpdate(e.id, { beute: beute });
+    refreshBegegnung();
+  }
+  // Beute mit explizit gewählter Tabelle + Anzahl auswürfeln.
+  function lootInstanzMit(e, tabelle, anzahl) {
+    var z = [];
+    for (var i = 0; i < anzahl; i++) z.push(global.DS_BEUTE.ziehung(tabelle, {}));
+    S.begegnungUpdate(e.id, { beute: { tabelle: tabelle, anzahl: anzahl, ziehungen: z } });
     refreshBegegnung();
   }
 
