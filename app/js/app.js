@@ -51,9 +51,7 @@
     var head = h('<div class="inline" style="justify-content:space-between;margin-bottom:16px;width:100%"></div>');
     head.appendChild(h('<h2 style="margin:0">Gruppe <span class="muted">(' + roster.length + ')</span></h2>'));
     var actions = h('<div class="inline"></div>');
-    var btnNew = h('<button class="btn btn-primary">+ Neuer Charakter</button>');
-    btnNew.onclick = function () { startCreate(); };
-    actions.appendChild(btnNew);
+    // "+ Neuer Charakter" steht bereits prominent in der Topnav -> hier nur Zufall + Export
     var btnGen = h('<button class="btn">🎲 Zufallscharakter</button>');
     btnGen.onclick = function () { go("generator"); };
     actions.appendChild(btnGen);
@@ -1061,13 +1059,14 @@
     var chips = h('<div class="chip-row"></div>');
     MONSTER_GRUPPEN.forEach(function (g) {
       var chip = h('<span class="chip' + (state.monster.gruppe === g ? " active" : "") + '">' + g + '</span>');
-      chip.onclick = function () { state.monster.gruppe = g; render(); };
+      chip.onclick = function () { state.monster.gruppe = g; state.monster.limit = MONSTER_LIMIT; render(); };
       chips.appendChild(chip);
     });
     wrap.appendChild(chips);
     var suche = h('<input type="text" id="m-suche" placeholder="🔎 Suche (Name)…" value="' + esc(state.monster.suche) + '" style="max-width:280px;margin-bottom:12px"/>');
     suche.addEventListener("input", function () {
       state.monster.suche = suche.value;
+      state.monster.limit = MONSTER_LIMIT;
       var cur = suche.selectionStart;
       renderCardsOnly();
       var s2 = document.getElementById("m-suche"); if (s2) { s2.focus(); s2.setSelectionRange(cur, cur); }
@@ -1089,14 +1088,19 @@
     });
   }
 
+  var MONSTER_LIMIT = 24; // wie viele Karten anfangs zeigen (Pagination)
+
   function renderCardsOnly() {
     var box = document.getElementById("m-cards");
     if (!box) return;
     box.innerHTML = "";
     var liste = gefilterteMonster();
-    box.appendChild(h('<div class="help" style="margin-bottom:8px">' + liste.length + ' Treffer</div>'));
+    var limit = state.monster.limit || MONSTER_LIMIT;
+    var sichtbar = liste.slice(0, limit);
+    box.appendChild(h('<div class="help" style="margin-bottom:8px">' + liste.length + ' Treffer' +
+      (liste.length > sichtbar.length ? ' · ' + sichtbar.length + ' angezeigt' : '') + '</div>'));
     var grid = h('<div class="grid grid-cards"></div>');
-    liste.forEach(function (m) {
+    sichtbar.forEach(function (m) {
       var card = h('<div class="card mcard">' +
         '<span class="ghbadge">GH ' + (m.gh != null ? m.gh : "?") + ' · ' + m.ep + ' EP</span>' +
         '<div class="mname">' + esc(m.name) + '</div>' +
@@ -1112,6 +1116,11 @@
       grid.appendChild(card);
     });
     box.appendChild(grid);
+    if (liste.length > sichtbar.length) {
+      var mehr = h('<button class="btn" style="margin-top:14px;width:100%">Mehr anzeigen (' + (liste.length - sichtbar.length) + ' weitere)</button>');
+      mehr.onclick = function () { state.monster.limit = limit + MONSTER_LIMIT; renderCardsOnly(); };
+      box.appendChild(mehr);
+    }
   }
 
   // Panel-Baustein. sticky=true für die kompakte Anzeige im Bestiarium-Tab.
@@ -1403,10 +1412,21 @@
   function beutePanel() {
     if (!global.DS_BEUTE || !R.beute) return h('<div></div>');
     if (!state.beute) state.beute = { tabelle: "C", wuerfe: 1, pw: "", manuell: "" };
+    if (state.beuteOffen === undefined) state.beuteOffen = false;
     var st = state.beute;
     var p = h('<div class="panel"></div>');
-    p.appendChild(h('<h2>💰 Freie Beute <span class="muted" style="font-weight:400;font-size:14px">· Truhen & Schätze</span> <a class="deeplink" href="' + (R.deeplinks.schaetze || "https://immersieg.de/grw/spielleitung-schaetze.html") + '" target="_blank" rel="noopener">↗ Regeln</a></h2>'));
-    p.appendChild(h('<div class="help" style="margin-bottom:8px">Für Schätze ohne Gegner (Truhen, Horte). Gegner-Beute kommt direkt beim besiegten Monster oben („💰 Looten"). Spieler würfelt W20 selbst und gibt ihn ein — oder „🎲 Auswürfeln" lässt das Tool würfeln und löst Verweise + Münzwürfe auf. Mit Probenwert (PW): Wurf ≤ PW = Treffer.</div>'));
+    // Einklappbarer Kopf — standardmäßig zu, da Nebenfunktion (Truhen)
+    var phead = h('<div class="inline" style="justify-content:space-between;width:100%;cursor:pointer"></div>');
+    phead.appendChild(h('<h2 style="margin:0">💰 Freie Beute <span class="muted" style="font-weight:400;font-size:14px">· Truhen & Schätze</span></h2>'));
+    phead.appendChild(h('<button class="btn btn-sm btn-subtle">' + (state.beuteOffen ? "▲" : "▼") + '</button>'));
+    phead.onclick = function () { state.beuteOffen = !state.beuteOffen; render(); };
+    p.appendChild(phead);
+    if (!state.beuteOffen && !beuteErgebnisse.length) return p;
+    if (!state.beuteOffen) { // zu, aber es gibt Ergebnisse -> nur die zeigen lassen über Öffnen
+      p.appendChild(h('<div class="help" style="margin-top:4px">' + beuteErgebnisse.length + ' Ergebnis(se) — zum Ansehen öffnen.</div>'));
+      return p;
+    }
+    p.appendChild(h('<div class="help" style="margin:6px 0 8px">Für Schätze ohne Gegner (Truhen, Horte). Gegner-Beute kommt direkt beim besiegten Monster oben („💰 Looten"). Spieler würfelt W20 selbst — oder „🎲 Auswürfeln" löst Verweise + Münzwürfe auf. Mit Probenwert (PW): Wurf ≤ PW = Treffer.</div>'));
 
     var chips = h('<div class="chip-row"></div>');
     BEUTE_TABS.forEach(function (tb) {
