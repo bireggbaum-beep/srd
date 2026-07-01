@@ -1183,9 +1183,30 @@
     var wrap = h('<div></div>');
     var head = h('<div class="inline" style="justify-content:space-between;width:100%;margin-bottom:10px"></div>');
     head.appendChild(h('<h2 style="margin:0">⚔️ Begegnung</h2>'));
+    var addWrap = h('<div class="inline"></div>');
     var addBtn = h('<button class="btn btn-primary">+ Monster</button>');
     addBtn.onclick = function () { go("monster"); };
-    head.appendChild(addBtn);
+    addWrap.appendChild(addBtn);
+    // + Held: Spielercharaktere aus dem Roster in den Tracker holen
+    var heldWrap = h('<div class="menu-wrap"></div>');
+    var heldBtn = h('<button class="btn">+ Held</button>');
+    var heldMenu = h('<div class="menu" hidden></div>');
+    heldBtn.onclick = function (ev) {
+      ev.stopPropagation();
+      heldMenu.innerHTML = "";
+      var roster = S.load();
+      if (!roster.length) { heldMenu.appendChild(h('<button disabled>Keine Charaktere</button>')); }
+      else roster.forEach(function (ch) {
+        var mi = h('<button>' + esc(ch.name) + ' <span class="muted" style="font-size:12px">· ' + esc(ch.klasse) + ' St.' + ch.stufe + '</span></button>');
+        mi.onclick = function () { heldMenu.hidden = true; S.begegnungAddHeld(ch); toast(ch.name + " zur Begegnung."); refreshBegegnung(); };
+        heldMenu.appendChild(mi);
+      });
+      heldMenu.hidden = !heldMenu.hidden;
+      if (!heldMenu.hidden) setTimeout(function () { document.addEventListener("click", function cl() { heldMenu.hidden = true; document.removeEventListener("click", cl); }); }, 0);
+    };
+    heldWrap.appendChild(heldBtn); heldWrap.appendChild(heldMenu);
+    addWrap.appendChild(heldWrap);
+    head.appendChild(addWrap);
     wrap.appendChild(head);
     wrap.appendChild(begegnungPanel(false));
     // Freie Beute (Truhen) nur als ein unaufdringlicher Link — öffnet einen Dialog.
@@ -1208,7 +1229,7 @@
       (list.length ? "(" + lebend.length + "/" + list.length + " aktiv · Σ " + sumEp + " EP · max GH " + maxGh + ")" : "(leer)") + '</span></h2>'));
     if (list.length) {
       var btns = h('<div class="inline"></div>');
-      var lootbar = list.filter(function (e) { return e.tot && !e.beute; });
+      var lootbar = list.filter(function (e) { return e.tot && !e.beute && e.typ !== "held"; });
       if (lootbar.length && global.DS_BEUTE && R.beute) {
         var lootAll = h('<button class="btn btn-sm">💰 Alle looten (' + lootbar.length + ')</button>');
         lootAll.onclick = function () {
@@ -1230,15 +1251,19 @@
     }
 
     list.forEach(function (e) {
-      var m = bySlug[e.slug];
+      var isHeld = e.typ === "held";
+      var m = isHeld ? null : bySlug[e.slug];
+      var char = isHeld ? S.get(e.charId) : null;
+      var kw = isHeld ? (char ? E.kampfwerte(char) : {}) : (m ? m.kw : {});
       var frac = e.lkMax ? Math.max(0, e.lk) / e.lkMax : 0;
       var farbe = e.tot ? "var(--muted)" : (frac <= 0.25 ? "var(--bad)" : (frac <= 0.6 ? "var(--accent-2)" : "var(--good)"));
-      var inst = h('<div class="enc-inst' + (e.tot ? " tot" : "") + '"></div>');
+      var inst = h('<div class="enc-inst' + (e.tot ? " tot" : "") + (isHeld ? " held" : "") + '"></div>');
 
       // Zeile 1: Name + LK + Steuerung
       var z1 = h('<div class="enc-line1"></div>');
-      var name = h('<span class="en"><a style="cursor:pointer">' + esc(e.label) + '</a></span>');
+      var name = h('<span class="en"><a style="cursor:pointer">' + (isHeld ? "🛡 " : "") + esc(e.label) + '</a></span>');
       if (m) name.querySelector("a").onclick = function () { openMonster(m); };
+      else if (char) name.querySelector("a").onclick = function () { openGesamt(char); };
       z1.appendChild(name);
       z1.appendChild(h('<span class="lkval" style="color:' + farbe + '">LK ' + Math.max(0, e.lk) + '/' + e.lkMax + '</span>'));
 
@@ -1272,10 +1297,8 @@
       z1.appendChild(dg);
       inst.appendChild(z1);
 
-      // Kompakte Kampfwerte direkt am Monster — Stil wie die Bestiarium-Karten
-      // (Label weiß, Wert gold), einheitlich über .mstats.
-      if (m) {
-        var kw = m.kw || {};
+      // Kompakte Kampfwerte direkt am Eintrag (Monster wie Held) — Bestiarium-Stil.
+      if (m || char) {
         var stat = function (label, titel, val, suffix) {
           if (val == null || val === "") return "";
           return '<span title="' + titel + '">' + label + ' <b>' + val + (suffix || "") + '</b></span>';

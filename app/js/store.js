@@ -136,6 +136,8 @@
   function begegnungSave(list) { localStorage.setItem(BKEY, JSON.stringify(list)); }
   function begegnungClear() { begegnungSave([]); }
 
+  function begId() { return "b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
   // Fügt n Instanzen eines Monsters hinzu (mit fortlaufender Nummerierung).
   function begegnungAddInstanz(m, n) {
     var list = begegnungLoad();
@@ -143,13 +145,25 @@
     var vorhanden = list.filter(function (x) { return x.slug === m.slug; }).length;
     for (var i = 0; i < n; i++) {
       list.push({
-        id: "b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        id: begId(), typ: "monster",
         slug: m.slug,
         label: m.name + " " + (vorhanden + i + 1),
         lkMax: m.kw.lk, lk: m.kw.lk,
         zustaende: [], tot: false, notiz: ""
       });
     }
+    begegnungSave(list); return list;
+  }
+
+  // Fügt einen Spielercharakter (aus dem Roster) zur Begegnung hinzu.
+  function begegnungAddHeld(char) {
+    var list = begegnungLoad();
+    if (list.some(function (x) { return x.typ === "held" && x.charId === char.id; })) return list; // nicht doppelt
+    var lk = E.kampfwerte(char).lebenskraft;
+    list.push({
+      id: begId(), typ: "held", charId: char.id, label: char.name,
+      lkMax: lk, lk: lk, zustaende: [], tot: false, notiz: ""
+    });
     begegnungSave(list); return list;
   }
   function begegnungUpdate(id, patch) {
@@ -177,6 +191,7 @@
     begegnungLoad: begegnungLoad,
     begegnungSave: begegnungSave,
     begegnungAddInstanz: begegnungAddInstanz,
+    begegnungAddHeld: begegnungAddHeld,
     begegnungUpdate: begegnungUpdate,
     begegnungRemove: begegnungRemove,
     begegnungClear: begegnungClear
