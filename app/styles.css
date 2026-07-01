@@ -92,6 +92,16 @@ th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line
 th { color: var(--muted); font-weight: 600; }
 td.num, th.num { text-align: right; }
 
+/* ---- Akkordeon (antippen zum Lesen) ---- */
+.acc { border-top: 1px solid var(--line); }
+.acc:first-of-type { border-top: none; }
+.acc-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 11px 2px; cursor: pointer; font-size: 15px; font-weight: 600; }
+.acc-head:hover, .acc.open .acc-head { color: var(--accent-2); }
+.acc-tag { color: var(--muted); font-weight: 400; font-size: 13px; white-space: nowrap; }
+.acc.open .acc-tag { color: var(--accent-2); }
+.acc-body { padding: 0 2px 12px; font-size: 14px; line-height: 1.5; }
+.acc-body .help a { color: var(--accent-2); }
+
 /* ---- Overflow-Menü (⋯) ---- */
 .menu-wrap { position: relative; flex: 0 0 auto; }
 .menu { position: absolute; right: 0; top: calc(100% + 4px); background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); min-width: 190px; z-index: 30; overflow: hidden; padding: 4px; }

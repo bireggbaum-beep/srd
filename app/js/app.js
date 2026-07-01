@@ -527,14 +527,56 @@
     pf.appendChild(ta);
     box.appendChild(pf);
 
-    // Talente / Zauber kurz
-    if ((c.talente && c.talente.length) || (c.zauber && c.zauber.length)) {
-      var pt = h('<div class="panel"></div>');
-      if (c.talente.length) pt.appendChild(h('<div><b>Talente:</b> ' + c.talente.map(function (t) { return '<span class="pill">' + esc(t.name) + ' ' + roman(t.rang) + '</span>'; }).join("") + '</div>'));
-      if (c.zauber.length) pt.appendChild(h('<div style="margin-top:8px"><b>Zauber:</b> ' + c.zauber.map(function (z) { return '<span class="pill">' + esc(z.name) + ' (St. ' + z.stufe + ')</span>'; }).join("") + '</div>'));
-      box.appendChild(pt);
+    // Talente (Akkordeon — antippen zum Lesen; gehören dem Charakter dauerhaft)
+    if (c.talente && c.talente.length) {
+      var ptt = h('<div class="panel"></div>');
+      ptt.appendChild(h('<h2>Talente <span class="muted" style="font-weight:400;font-size:13px">· antippen zum Lesen</span></h2>'));
+      c.talente.slice().sort(function (a, b) { return a.name.localeCompare(b.name, "de"); }).forEach(function (t) {
+        var def = E.talentDef ? E.talentDef(t.name) : null;
+        var z = def ? E.talentZugang(c, def) : null;
+        var kopf = esc(t.name) + '<span class="acc-tag">' + roman(t.rang) + (z ? ' / ' + roman(z.rang) : '') + '</span>';
+        var body = h('<div></div>');
+        if (def) {
+          body.appendChild(h('<div style="white-space:pre-line">' + esc(def.beschreibung) + '</div>'));
+          body.appendChild(h('<div class="help" style="margin-top:6px"><a href="' + def.ref + '" target="_blank" rel="noopener">↗ Regeln</a></div>'));
+        } else { body.appendChild(h('<div class="muted">Keine Beschreibung hinterlegt.</div>')); }
+        ptt.appendChild(accordion(kopf, body));
+      });
+      box.appendChild(ptt);
+    }
+
+    // Zauber (Akkordeon)
+    if (c.zauber && c.zauber.length) {
+      var ptz = h('<div class="panel"></div>');
+      ptz.appendChild(h('<h2>Zauber <span class="muted" style="font-weight:400;font-size:13px">· antippen zum Lesen</span></h2>'));
+      c.zauber.slice().sort(function (a, b) { return (a.stufe || 0) - (b.stufe || 0) || a.name.localeCompare(b.name, "de"); }).forEach(function (zs) {
+        var def = E.zauberDef ? E.zauberDef(zs.name) : null;
+        var kopf = esc(zs.name) + '<span class="acc-tag">St. ' + (zs.stufe || "?") + (def ? ' · ' + esc(def.art) : '') + '</span>';
+        var body = h('<div></div>');
+        if (def) {
+          var meta = [["Art", def.art], ["ZB", def.zb], ["Dauer", def.dauer], ["Distanz", def.distanz], ["Abklingzeit", def.abklingzeit]]
+            .filter(function (a) { return a[1]; }).map(function (a) { return a[0] + ": " + esc(a[1]); }).join(" · ");
+          if (meta) body.appendChild(h('<div class="help" style="margin-bottom:6px">' + meta + '</div>'));
+          body.appendChild(h('<div style="white-space:pre-line">' + esc(def.beschreibung) + '</div>'));
+          body.appendChild(h('<div class="help" style="margin-top:6px"><a href="' + def.ref + '" target="_blank" rel="noopener">↗ Regeln</a></div>'));
+        } else { body.appendChild(h('<div class="muted">Keine Beschreibung hinterlegt.</div>')); }
+        ptz.appendChild(accordion(kopf, body));
+      });
+      box.appendChild(ptz);
     }
     return box;
+  }
+
+  // Wiederverwendbares Akkordeon: Kopf antippen -> auf/zu (reines DOM-Toggle,
+  // kein Re-render; mehrere gleichzeitig offen möglich, kein Dreieck).
+  function accordion(headerHtml, bodyNode) {
+    var item = h('<div class="acc"></div>');
+    var head = h('<div class="acc-head">' + headerHtml + '</div>');
+    var body = h('<div class="acc-body" hidden></div>');
+    body.appendChild(bodyNode);
+    head.onclick = function () { body.hidden = !body.hidden; item.classList.toggle("open", !body.hidden); };
+    item.appendChild(head); item.appendChild(body);
+    return item;
   }
 
   // ---- Tab: Aufstieg (das Herz) -------------------------------------------
