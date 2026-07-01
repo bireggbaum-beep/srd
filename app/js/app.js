@@ -413,28 +413,41 @@
     var wrap = h('<div></div>');
     wrap.appendChild(h('<div class="breadcrumb"><a id="bc-roster">Gruppe</a> / ' + esc(c.name) + '</div>'));
 
-    // Kopf
-    var head = h('<div class="inline" style="justify-content:space-between;width:100%;flex-wrap:wrap;gap:10px"></div>');
-    head.appendChild(h('<div><h2 style="margin:0">' + esc(c.name) + '</h2>' +
-      '<div class="muted">' + esc(c.volk + " " + c.klasse + (c.unterklasse ? " · " + c.unterklasse : "") + (c.heldenklasse ? " · " + c.heldenklasse : "")) +
-      ' · Stufe ' + c.stufe + '</div></div>'));
-    var ha = h('<div class="inline"></div>');
-    var bGesamt = h('<button class="btn btn-subtle btn-sm" title="Alle Infos auf einen Blick">📋 Gesamtansicht</button>');
-    bGesamt.onclick = function () { openGesamt(c); };
-    var bExp = h('<button class="btn">Export JSON</button>');
-    bExp.onclick = function () { S.exportChar(c); toast(c.id + ".json heruntergeladen — ins Repo committen."); };
-    var bDel = h('<button class="btn btn-danger">Löschen</button>');
-    bDel.onclick = function () { if (confirm("„" + c.name + "“ wirklich löschen? (Export vorher empfohlen)")) { S.remove(c.id); toast("Gelöscht."); go("roster"); } };
-    ha.appendChild(bGesamt); ha.appendChild(bExp); ha.appendChild(bDel);
-    head.appendChild(ha);
-    wrap.appendChild(head);
+    // Kopf — schlank: Name + Overflow-Menü, dezente Info-Zeile, Aktions-Pills nur wenn nötig
+    var head = h('<div class="inline" style="justify-content:space-between;width:100%;align-items:flex-start;gap:10px"></div>');
+    var titel = h('<div></div>');
+    titel.appendChild(h('<h2 style="margin:0 0 2px">' + esc(c.name) + '</h2>'));
+    var subline = c.volk + " " + c.klasse + (c.unterklasse ? " · " + c.unterklasse : "") +
+      (c.heldenklasse ? " · " + c.heldenklasse : "") + " · Stufe " + c.stufe + " · " + c.ep + " EP";
+    titel.appendChild(h('<div class="muted" style="font-size:13px">' + esc(subline) + '</div>'));
+    if (c.konten.lpOffen || c.konten.tpOffen) {
+      var pills = h('<div style="margin-top:6px"></div>');
+      if (c.konten.lpOffen) pills.appendChild(h('<span class="pill good">' + c.konten.lpOffen + ' LP offen</span>'));
+      if (c.konten.tpOffen) pills.appendChild(h('<span class="pill good">' + c.konten.tpOffen + ' TP offen</span>'));
+      titel.appendChild(pills);
+    }
+    head.appendChild(titel);
 
-    // Konten-Badges
-    var counts = h('<div class="badge-counts"></div>');
-    counts.appendChild(h('<div class="count"><b>' + c.ep + '</b>EP</div>'));
-    counts.appendChild(h('<div class="count"><b>' + c.konten.lpOffen + '</b>LP offen</div>'));
-    counts.appendChild(h('<div class="count"><b>' + c.konten.tpOffen + '</b>TP offen</div>'));
-    wrap.appendChild(counts);
+    // Overflow-Menü (⋯) für Sekundär-Aktionen
+    var menuWrap = h('<div class="menu-wrap"></div>');
+    var menuBtn = h('<button class="btn btn-sm" title="Mehr" aria-label="Menü">⋯</button>');
+    var menu = h('<div class="menu" hidden></div>');
+    function menuItem(label, fn, danger) {
+      var mi = h('<button' + (danger ? ' class="danger"' : '') + '>' + label + '</button>');
+      mi.onclick = function () { menu.hidden = true; fn(); };
+      menu.appendChild(mi);
+    }
+    menuItem("📋 Gesamtansicht", function () { openGesamt(c); });
+    menuItem("⬇︎ Export JSON", function () { S.exportChar(c); toast(c.id + ".json heruntergeladen — ins Repo committen."); });
+    menuItem("🗑 Löschen", function () { if (confirm("„" + c.name + "“ wirklich löschen? (Export vorher empfohlen)")) { S.remove(c.id); toast("Gelöscht."); go("roster"); } }, true);
+    menuBtn.onclick = function (ev) {
+      ev.stopPropagation();
+      menu.hidden = !menu.hidden;
+      if (!menu.hidden) setTimeout(function () { document.addEventListener("click", function close() { menu.hidden = true; document.removeEventListener("click", close); }); }, 0);
+    };
+    menuWrap.appendChild(menuBtn); menuWrap.appendChild(menu);
+    head.appendChild(menuWrap);
+    wrap.appendChild(head);
 
     // Tabs
     var tabs = h('<div class="tabs"></div>');
