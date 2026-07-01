@@ -93,6 +93,9 @@
         '</div>' +
         '</div>');
       card.onclick = function () { state.tab = "uebersicht"; go("sheet", c.id); };
+      var toBeg = h('<button class="btn btn-sm btn-subtle" style="margin-top:10px" title="zur Begegnung hinzufügen">⚔️ Zur Begegnung</button>');
+      toBeg.onclick = function (ev) { ev.stopPropagation(); S.begegnungAddHeld(c); toast(c.name + " zur Begegnung."); };
+      card.appendChild(toBeg);
       grid.appendChild(card);
     });
     wrap.appendChild(grid);
@@ -1292,6 +1295,9 @@
             if (!lootSection.hidden) { var f = lootSection.querySelector(".loot-roll"); if (f) f.focus(); }
           }
         };
+        var bRevive = h('<button class="btn enc-btn" title="wiederbeleben">↺</button>');
+        bRevive.onclick = function () { S.begegnungUpdate(e.id, { tot: false, lk: e.lk <= 0 ? e.lkMax : e.lk }); refreshBegegnung(); };
+        dg.appendChild(bRevive);
       } else {
         bTot = h('<button class="btn enc-btn" title="' + (e.tot ? "wiederbeleben" : "als kampfunfähig markieren") + '">' + (e.tot ? "↺" : "💀") + '</button>');
         bTot.onclick = function () { S.begegnungUpdate(e.id, { tot: !e.tot, lk: e.tot && e.lk <= 0 ? e.lkMax : e.lk }); refreshBegegnung(); };
