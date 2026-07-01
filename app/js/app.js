@@ -1243,6 +1243,7 @@
       panel.appendChild(h('<div class="muted" style="margin-top:6px">Noch keine Monster — im Tab „🐉 Monster" eine Karte anklicken.</div>'));
       return;
     }
+    panel.appendChild(h('<div class="muted" style="margin:2px 0 8px;font-size:12px">Zeile wischen: ← entfernen · → wiederbeleben</div>'));
 
     list.forEach(function (e) {
       var isHeld = e.typ === "held";
@@ -1281,7 +1282,8 @@
       hp.appendChild(dmg); hp.appendChild(bDmg); hp.appendChild(bHeal);
       z1.appendChild(hp);
 
-      // Status-Steuerung (abgesetzte Gruppe rechts): kampfunfähig / Beute + entfernen
+      // Status-Steuerung rechts: kampfunfähig markieren bzw. Beute öffnen.
+      // Entfernen & Wiederbeleben laufen über Swipe (siehe unten) — hält die Zeile schlank.
       var lootSection = null; // wird unten gebaut; der Beutel-Button klappt sie auf
       var dg = h('<div class="enc-grp enc-danger"></div>');
       var bTot;
@@ -1295,16 +1297,11 @@
             if (!lootSection.hidden) { var f = lootSection.querySelector(".loot-roll"); if (f) f.focus(); }
           }
         };
-        var bRevive = h('<button class="btn enc-btn" title="wiederbeleben">↺</button>');
-        bRevive.onclick = function () { S.begegnungUpdate(e.id, { tot: false, lk: e.lk <= 0 ? e.lkMax : e.lk }); refreshBegegnung(); };
-        dg.appendChild(bRevive);
       } else {
         bTot = h('<button class="btn enc-btn" title="' + (e.tot ? "wiederbeleben" : "als kampfunfähig markieren") + '">' + (e.tot ? "↺" : "💀") + '</button>');
         bTot.onclick = function () { S.begegnungUpdate(e.id, { tot: !e.tot, lk: e.tot && e.lk <= 0 ? e.lkMax : e.lk }); refreshBegegnung(); };
       }
-      var del = h('<button class="btn enc-btn btn-danger" title="entfernen">✕</button>');
-      del.onclick = function () { S.begegnungRemove(e.id); refreshBegegnung(); };
-      dg.appendChild(bTot); dg.appendChild(del);
+      dg.appendChild(bTot);
       z1.appendChild(dg);
       inst.appendChild(z1);
 
@@ -1375,8 +1372,67 @@
         inst.appendChild(lootSection);
       }
 
-      panel.appendChild(inst);
+      // Swipe: nach links = entfernen, nach rechts = wiederbeleben (nur wenn tot).
+      var row = h('<div class="enc-row"></div>');
+      var actions = h('<div class="enc-actions">' +
+        '<div class="act act-revive">↺ Wiederbeleben</div>' +
+        '<div class="act act-remove">Entfernen ✕</div></div>');
+      row.appendChild(actions);
+      row.appendChild(inst);
+      makeSwipeable(inst, {
+        onLeft: function () { S.begegnungRemove(e.id); refreshBegegnung(); },
+        onRight: e.tot ? function () { S.begegnungUpdate(e.id, { tot: false, lk: e.lk <= 0 ? e.lkMax : e.lk }); refreshBegegnung(); } : null
+      });
+      panel.appendChild(row);
     });
+  }
+
+  // Pointer-basiertes Swipe (Maus + Touch) auf einer Zeile: über den Schwellwert
+  // hinaus nach links/rechts ziehen löst die jeweilige Aktion aus, sonst zurück.
+  function makeSwipeable(el, opts) {
+    var startX = 0, startY = 0, dx = 0, active = false, decided = false, horiz = false;
+    var TH = 90; // Auslöse-Schwelle in px
+    function isInteractive(t) { return t.closest && t.closest("button, input, select, a, .loot-out"); }
+    el.addEventListener("pointerdown", function (ev) {
+      if (ev.pointerType === "mouse" && ev.button !== 0) return;
+      if (isInteractive(ev.target)) return;
+      active = true; decided = false; horiz = false; dx = 0;
+      startX = ev.clientX; startY = ev.clientY;
+      el.classList.add("swiping");
+    });
+    el.addEventListener("pointermove", function (ev) {
+      if (!active) return;
+      dx = ev.clientX - startX;
+      var dy = ev.clientY - startY;
+      if (!decided) {
+        if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+        decided = true; horiz = Math.abs(dx) > Math.abs(dy);
+        if (horiz) el.setPointerCapture(ev.pointerId);
+      }
+      if (!horiz) return;
+      ev.preventDefault();
+      if (dx > 0 && !opts.onRight) dx = Math.min(dx, 24); // rechts nur andeuten, wenn deaktiviert
+      if (dx < 0 && !opts.onLeft) dx = Math.max(dx, -24);
+      el.style.transform = "translateX(" + dx + "px)";
+      el.parentNode.classList.toggle("reveal-left", dx > 12);
+      el.parentNode.classList.toggle("reveal-right", dx < -12);
+    });
+    function end() {
+      if (!active) return;
+      active = false;
+      el.classList.remove("swiping");
+      var triggered = false;
+      if (horiz) {
+        if (dx <= -TH && opts.onLeft) { triggered = true; el.style.transform = "translateX(-110%)"; opts.onLeft(); }
+        else if (dx >= TH && opts.onRight) { triggered = true; el.style.transform = "translateX(110%)"; opts.onRight(); }
+      }
+      if (!triggered) {
+        el.style.transform = "";
+        el.parentNode.classList.remove("reveal-left", "reveal-right");
+      }
+    }
+    el.addEventListener("pointerup", end);
+    el.addEventListener("pointercancel", end);
   }
 
   function openZustaende(e) {
