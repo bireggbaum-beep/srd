@@ -1108,10 +1108,7 @@
     var monster = R.monster || [];
     var wrap = h('<div></div>');
     wrap.appendChild(h('<h2 style="margin:0 0 4px">🐉 Bestiarium <span class="muted">(' + monster.length + ' Kreaturen)</span></h2>'));
-    wrap.appendChild(h('<div class="help" style="margin-bottom:6px">Karte anklicken = zur Begegnung hinzufügen · ℹ = Statblock lesen.</div>'));
-
-    // --- Begegnung (kompakt, oben) ---
-    wrap.appendChild(begegnungPanel(true));
+    wrap.appendChild(h('<div class="help" style="margin-bottom:6px">Karte anklicken = zur Begegnung hinzufügen · ℹ = Statblock lesen · Verwaltung im Tab „⚔️ Begegnung".</div>'));
 
     // --- Quick-Filter (Gruppen) + Suche ---
     var chips = h('<div class="chip-row"></div>');
