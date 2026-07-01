@@ -528,7 +528,7 @@
     ta.addEventListener("change", function () { c.notizen = ta.value; S.upsert(c); toast("Notiz gespeichert."); });
     pf.appendChild(h('<label style="margin-top:8px">Notizen</label>'));
     pf.appendChild(ta);
-    box.appendChild(pf);
+    // pf (Volk, Sprachen & Notizen) ist am unwichtigsten -> ganz unten angehängt.
 
     // Talente (Akkordeon — antippen zum Lesen; gehören dem Charakter dauerhaft)
     if (c.talente && c.talente.length) {
@@ -567,6 +567,8 @@
       });
       box.appendChild(ptz);
     }
+
+    box.appendChild(pf); // Volk, Sprachen & Notizen ganz unten (am wenigsten wichtig)
     return box;
   }
 
@@ -1526,17 +1528,17 @@
     document.removeEventListener("keydown", escCloseMonster);
   }
 
-  // ---- Beute (Schätze auswürfeln, Spieler würfelt selbst oder Tool) ---------
-  var beuteErgebnisse = []; // { tabelle, ueberschrift, zeilen } — überlebt HP-Refreshes
+  // ---- Beute (Schätze auswürfeln + Tabellen nachschlagen) ------------------
   var BEUTE_TABS = [["A", "Münzen"], ["B", "Primitive Hum."], ["C", "Zivil. Wildnis"], ["D", "Zivil. Urban"], ["M", "Magisch"]];
 
-  // Freie Beute (Truhen/Schätze) — ein fokussierter Dialog statt Dauer-Panel.
+  // Freie Beute (Truhen/Schätze): Tabelle per Dropdown wählen, die ganze Tabelle
+  // ansehen und bei Bedarf einen W20-Wurf direkt auflösen (wie beim Monster-Loot).
   function openBeuteRoller() {
     if (!global.DS_BEUTE || !R.beute) return;
-    if (!state.beute) state.beute = { tabelle: "C", wuerfe: 1, pw: "" };
+    if (!state.beute) state.beute = { tabelle: "C" };
     var overlay = h('<div class="overlay"></div>');
     var modal = h('<div class="modal" style="max-width:560px"></div>');
-    var head = h('<div class="modal-head"><h2>💰 Schatz auswürfeln</h2></div>');
+    var head = h('<div class="modal-head"><h2>💰 Beute & Tabellen</h2></div>');
     var close = h('<button class="btn btn-sm no-print">Schließen ✕</button>'); close.onclick = closeBeuteRoller;
     head.appendChild(close); modal.appendChild(head);
     var body = h('<div class="modal-body"></div>');
@@ -1554,74 +1556,48 @@
   }
   function fillBeuteRoller(body) {
     var st = state.beute;
+    if (!R.beute[st.tabelle]) st.tabelle = "C";
     body.innerHTML = "";
-    body.appendChild(h('<div class="help" style="margin-bottom:8px">Für Schätze ohne Gegner (Truhen, Horte). Spieler würfelt W20 selbst — oder „🎲 Auswürfeln" löst Verweise + Münzwürfe auf. Mit Probenwert (PW): Wurf ≤ PW = Treffer.</div>'));
-    var chips = h('<div class="chip-row"></div>');
-    BEUTE_TABS.forEach(function (tb) {
-      var chip = h('<span class="chip' + (st.tabelle === tb[0] ? " active" : "") + '">' + tb[1] + ' (' + tb[0] + ')</span>');
-      chip.onclick = function () { st.tabelle = tb[0]; fillBeuteRoller(body); };
-      chips.appendChild(chip);
-    });
-    var more = h('<select style="max-width:150px"></select>');
-    more.appendChild(h('<option value="">weitere…</option>'));
-    Object.keys(R.beute).forEach(function (id) { more.appendChild(h('<option value="' + id + '"' + (st.tabelle === id ? " selected" : "") + '>' + id + ' · ' + esc(R.beute[id].name).slice(0, 24) + '</option>')); });
-    more.onchange = function () { if (more.value) { st.tabelle = more.value; fillBeuteRoller(body); } };
-    chips.appendChild(more);
-    body.appendChild(chips);
+    body.appendChild(h('<div class="help" style="margin-bottom:10px">Für Schätze ohne Gegner (Truhen, Horte): Tabelle wählen, nachschlagen — und bei Bedarf deinen W20-Wurf eintragen.</div>'));
 
-    var row = h('<div class="inline" style="flex-wrap:wrap;gap:10px;margin:8px 0"></div>');
-    var wuerfe = h('<input type="number" min="1" value="' + (st.wuerfe || 1) + '" title="Anzahl Würfe" style="width:70px"/>');
-    var pw = h('<input type="number" placeholder="PW (optional)" value="' + esc(st.pw) + '" style="width:130px"/>');
-    var btnAuto = h('<button class="btn btn-primary">🎲 Auswürfeln</button>');
-    btnAuto.onclick = function () {
-      st.wuerfe = Math.max(1, parseInt(wuerfe.value, 10) || 1); st.pw = pw.value;
-      var opts = pw.value ? { mode: "probe", pw: parseInt(pw.value, 10) } : {};
-      for (var i = 0; i < st.wuerfe; i++) { var z = global.DS_BEUTE.ziehung(st.tabelle, opts); z.tabelle = st.tabelle; beuteErgebnisse.unshift(z); }
-      fillBeuteRoller(body);
-    };
-    row.appendChild(h('<span class="enc-meta">Würfe</span>')); row.appendChild(wuerfe);
-    row.appendChild(pw); row.appendChild(btnAuto);
-    body.appendChild(row);
+    // Tabelle wählen (Dropdown; Haupt- und weitere Tabellen gruppiert)
+    var selRow = h('<div class="loot-controls" style="margin-bottom:10px"></div>');
+    selRow.appendChild(h('<span class="enc-meta">Tabelle</span>'));
+    var sel = h('<select style="max-width:300px"></select>');
+    var haupt = BEUTE_TABS.map(function (tb) { return tb[0]; });
+    function optHtml(id) { return '<option value="' + id + '"' + (st.tabelle === id ? " selected" : "") + '>' + id + ' · ' + esc(R.beute[id].name) + '</option>'; }
+    var rest = Object.keys(R.beute).filter(function (id) { return haupt.indexOf(id) < 0; });
+    sel.innerHTML = '<optgroup label="Haupttabellen">' + haupt.filter(function (id) { return R.beute[id]; }).map(optHtml).join("") + '</optgroup>' +
+      '<optgroup label="Weitere">' + rest.map(optHtml).join("") + '</optgroup>';
+    sel.onchange = function () { st.tabelle = sel.value; fillBeuteRoller(body); };
+    selRow.appendChild(sel);
+    body.appendChild(selRow);
 
-    var row2 = h('<div class="inline" style="flex-wrap:wrap;gap:8px"></div>');
-    var man = h('<input type="number" placeholder="eigener W20…" style="width:130px"/>');
-    var btnMan = h('<button class="btn">✍️ Wurf anwenden</button>');
-    btnMan.onclick = function () {
-      var v = parseInt(man.value, 10); if (isNaN(v)) { toast("W20-Ergebnis eingeben."); return; }
-      var opts = pw.value ? { mode: "probe", pw: parseInt(pw.value, 10), forcedRoll: v } : { forcedRoll: v };
-      var z = global.DS_BEUTE.ziehung(st.tabelle, opts); z.tabelle = st.tabelle; beuteErgebnisse.unshift(z); fillBeuteRoller(body);
-    };
-    var btnTab = h('<button class="btn btn-subtle">📖 Tabelle</button>');
-    btnTab.onclick = function () { openBeuteTabelle(st.tabelle); };
-    row2.appendChild(man); row2.appendChild(btnMan); row2.appendChild(btnTab);
-    body.appendChild(row2);
+    var t = R.beute[st.tabelle];
 
-    if (beuteErgebnisse.length) {
-      var eh = h('<div class="inline" style="justify-content:space-between;width:100%;margin-top:12px"></div>');
-      eh.appendChild(h('<h3 style="margin:0">Ergebnisse</h3>'));
-      var clr = h('<button class="btn btn-sm btn-danger">Leeren</button>');
-      clr.onclick = function () { beuteErgebnisse = []; fillBeuteRoller(body); };
-      eh.appendChild(clr); body.appendChild(eh);
-      beuteErgebnisse.forEach(function (z) {
-        var card = h('<div class="beute-erg"></div>');
-        card.appendChild(h('<div class="muted" style="font-size:12px">Tabelle ' + z.tabelle + (z.ueberschrift ? " · " + esc(z.ueberschrift) : "") + '</div>'));
-        if (!z.zeilen.length) card.appendChild(h('<div class="muted">—</div>'));
-        z.zeilen.forEach(function (zl) {
-          card.appendChild(h('<div style="margin-left:' + (zl.tiefe * 16) + 'px">' + (zl.tiefe ? "" : "• ") + esc(zl.text) + ' <span class="muted" style="font-size:11px">' + esc(zl.info) + '</span></div>'));
-        });
-        body.appendChild(card);
+    // W20-Wurf direkt auflösen — optional, Ergebnis erscheint live.
+    var rollRow = h('<div class="loot-controls"></div>');
+    rollRow.appendChild(h('<span class="enc-meta">Wurf</span>'));
+    var roll = h('<input type="number" class="loot-roll" min="1" placeholder="W20" />');
+    var rnd = h('<button class="btn btn-sm btn-subtle" title="Zufallswurf">🎲</button>');
+    rollRow.appendChild(roll); rollRow.appendChild(rnd);
+    body.appendChild(rollRow);
+    var out = h('<div class="loot-out"></div>');
+    body.appendChild(out);
+    function showRoll() {
+      var v = parseInt(roll.value, 10); out.innerHTML = "";
+      if (isNaN(v)) return;
+      var zg = global.DS_BEUTE.ziehung(st.tabelle, { forcedRoll: v });
+      (zg.zeilen || []).forEach(function (zl) {
+        out.appendChild(h('<div class="loot-line" style="margin-left:' + (zl.tiefe * 14) + 'px">' + (zl.tiefe ? "" : "• ") + esc(zl.text) + '</div>'));
       });
     }
-  }
+    roll.addEventListener("input", showRoll);
+    rnd.onclick = function () { roll.value = global.DS_BEUTE.rollDice(t.dice); showRoll(); };
 
-  function openBeuteTabelle(id) {
-    var t = R.beute[id]; if (!t) return;
-    var overlay = h('<div class="overlay"></div>');
-    var modal = h('<div class="modal" style="max-width:560px"></div>');
-    var head = h('<div class="modal-head"><h2>Tabelle ' + id + ' <span class="muted" style="font-weight:400;font-size:14px">· ' + esc(t.name) + ' (' + t.dice + ')</span></h2></div>');
-    var close = h('<button class="btn btn-sm no-print">Schließen ✕</button>'); close.onclick = closeBeuteTabelle;
-    head.appendChild(close); modal.appendChild(head);
-    var body = h('<div class="modal-body"></div>');
+    // Ganze Tabelle zum Nachschlagen anzeigen.
+    var tblWrap = h('<div style="margin-top:14px"></div>');
+    tblWrap.appendChild(h('<div class="muted" style="font-size:12px;margin-bottom:4px">Tabelle ' + st.tabelle + ' · ' + esc(t.name) + ' (' + t.dice + ')</div>'));
     var tbl = h('<table></table>');
     tbl.appendChild(h('<tr><th>' + t.dice + '</th><th>Ergebnis</th></tr>'));
     (t.rows || []).forEach(function (r) {
@@ -1629,17 +1605,8 @@
       var rng = r.lo === r.hi ? r.lo : r.lo + "–" + r.hi;
       tbl.appendChild(h('<tr><td class="num">' + rng + '</td><td>' + esc(r.text) + '</td></tr>'));
     });
-    body.appendChild(tbl);
-    modal.appendChild(body); overlay.appendChild(modal);
-    overlay.addEventListener("click", function (ev) { if (ev.target === overlay) closeBeuteTabelle(); });
-    document.addEventListener("keydown", escCloseBeute);
-    document.body.appendChild(overlay); overlay.id = "beute-overlay";
-  }
-  function escCloseBeute(ev) { if (ev.key === "Escape") closeBeuteTabelle(); }
-  function closeBeuteTabelle() {
-    var o = document.getElementById("beute-overlay");
-    if (o) o.remove();
-    document.removeEventListener("keydown", escCloseBeute);
+    tblWrap.appendChild(tbl);
+    body.appendChild(tblWrap);
   }
 
   // ---- Diverses ------------------------------------------------------------
