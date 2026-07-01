@@ -1229,15 +1229,6 @@
       (list.length ? "(" + lebend.length + "/" + list.length + " aktiv · Σ " + sumEp + " EP · max GH " + maxGh + ")" : "(leer)") + '</span></h2>'));
     if (list.length) {
       var btns = h('<div class="inline"></div>');
-      var lootbar = list.filter(function (e) { return e.tot && !e.beute && e.typ !== "held"; });
-      if (lootbar.length && global.DS_BEUTE && R.beute) {
-        var lootAll = h('<button class="btn btn-sm">💰 Alle looten (' + lootbar.length + ')</button>');
-        lootAll.onclick = function () {
-          lootbar.forEach(function (e) { var m = bySlug[e.slug]; if (m) S.begegnungUpdate(e.id, { beute: global.DS_BEUTE.lootMonster(m) }); });
-          refreshBegegnung();
-        };
-        btns.appendChild(lootAll);
-      }
       var clear = h('<button class="btn btn-sm btn-danger">Leeren</button>');
       clear.onclick = function () { if (confirm("Begegnung leeren?")) { S.begegnungClear(); refreshBegegnung(); } };
       btns.appendChild(clear);
@@ -1287,10 +1278,24 @@
       hp.appendChild(dmg); hp.appendChild(bDmg); hp.appendChild(bHeal);
       z1.appendChild(hp);
 
-      // Status-Steuerung (abgesetzte Gruppe rechts): kampfunfähig + entfernen
+      // Status-Steuerung (abgesetzte Gruppe rechts): kampfunfähig / Beute + entfernen
+      var lootSection = null; // wird unten gebaut; der Beutel-Button klappt sie auf
       var dg = h('<div class="enc-grp enc-danger"></div>');
-      var bTot = h('<button class="btn enc-btn" title="' + (e.tot ? "wiederbeleben" : "als kampfunfähig markieren") + '">' + (e.tot ? "↺" : "💀") + '</button>');
-      bTot.onclick = function () { S.begegnungUpdate(e.id, { tot: !e.tot, lk: e.tot && e.lk <= 0 ? e.lkMax : e.lk }); refreshBegegnung(); };
+      var bTot;
+      if (!isHeld && e.tot) {
+        // Besiegtes Monster: der Totenkopf wird zum Beutel und klappt die Beute auf.
+        bTot = h('<button class="btn enc-btn" title="Beute">🎒</button>');
+        bTot.onclick = function (ev) {
+          ev.stopPropagation();
+          if (lootSection) {
+            lootSection.hidden = !lootSection.hidden;
+            if (!lootSection.hidden) { var f = lootSection.querySelector(".loot-roll"); if (f) f.focus(); }
+          }
+        };
+      } else {
+        bTot = h('<button class="btn enc-btn" title="' + (e.tot ? "wiederbeleben" : "als kampfunfähig markieren") + '">' + (e.tot ? "↺" : "💀") + '</button>');
+        bTot.onclick = function () { S.begegnungUpdate(e.id, { tot: !e.tot, lk: e.tot && e.lk <= 0 ? e.lkMax : e.lk }); refreshBegegnung(); };
+      }
       var del = h('<button class="btn enc-btn btn-danger" title="entfernen">✕</button>');
       del.onclick = function () { S.begegnungRemove(e.id); refreshBegegnung(); };
       dg.appendChild(bTot); dg.appendChild(del);
@@ -1323,61 +1328,49 @@
       z2.appendChild(addZ);
       inst.appendChild(z2);
 
-      // Zeile 3: Beute (erst wenn besiegt)
+      // Zeile 3: Beute — nur Monster, nur wenn besiegt. Über den Beutel aufklappbar.
+      // W20-Wurf eintippen/auswählen (1–20) → zeigt live die Beute laut Tabelle.
       if (e.tot && global.DS_BEUTE && R.beute && m) {
-        var z3 = h('<div class="enc-loot"></div>');
-        if (!e.beute) {
-          var prof = global.DS_BEUTE.profilFuerMonster(m);
-          // Tabelle pro Gegner wählbar (Vorschlag nach Kreaturentyp), Anzahl = BW
-          var lootRow = h('<div class="inline" style="flex-wrap:wrap;gap:6px"></div>');
-          var tsel = h('<select title="Beutetabelle" style="max-width:170px"></select>');
-          BEUTE_TABS.forEach(function (tb) { tsel.appendChild(h('<option value="' + tb[0] + '"' + (prof.tabelle === tb[0] ? " selected" : "") + '>' + tb[1] + ' (' + tb[0] + ')</option>')); });
-          var cnt = h('<input type="number" min="1" value="' + prof.anzahl + '" title="Anzahl Funde" style="width:56px"/>');
-          var bl = h('<button class="btn btn-sm">💰 Looten</button>');
-          bl.onclick = function () { lootInstanzMit(e, tsel.value, Math.max(1, parseInt(cnt.value, 10) || 1)); };
-          lootRow.appendChild(h('<span class="enc-meta">Beute:</span>'));
-          lootRow.appendChild(tsel); lootRow.appendChild(cnt); lootRow.appendChild(bl);
-          z3.appendChild(lootRow);
-        } else {
-          z3.appendChild(renderLoot(e.beute));
-          var rr = h('<button class="btn btn-sm btn-subtle" title="neu auswürfeln">🎲 neu</button>');
-          rr.onclick = function () { lootInstanzMit(e, e.beute.tabelle, e.beute.anzahl); };
-          var cl = h('<button class="btn btn-sm" title="Beute entfernen">✕</button>');
-          cl.onclick = function () { S.begegnungUpdate(e.id, { beute: null }); refreshBegegnung(); };
-          var ctr = h('<div class="inline" style="margin-top:4px"></div>');
-          ctr.appendChild(rr); ctr.appendChild(cl);
-          z3.appendChild(ctr);
-        }
-        inst.appendChild(z3);
+        var prof = global.DS_BEUTE.profilFuerMonster(m);
+        var startTab = (e.beute && e.beute.tabelle) || prof.tabelle;
+        lootSection = h('<div class="enc-loot"' + (e.beute ? "" : " hidden") + '></div>');
+
+        var lootRow = h('<div class="loot-controls"></div>');
+        lootRow.appendChild(h('<span class="enc-meta">Wurf</span>'));
+        var roll = h('<input type="number" min="1" max="20" class="loot-roll" placeholder="W20"' +
+          (e.beute && e.beute.roll != null ? ' value="' + e.beute.roll + '"' : "") + ' />');
+        var tsel = h('<select class="loot-tab" title="Beutetabelle"></select>');
+        BEUTE_TABS.forEach(function (tb) { tsel.appendChild(h('<option value="' + tb[0] + '"' + (startTab === tb[0] ? " selected" : "") + '>' + tb[1] + ' (' + tb[0] + ')</option>')); });
+        var reroll = h('<button class="btn btn-sm btn-subtle" title="zufälliger Wurf">🎲</button>');
+        reroll.onclick = function () { roll.value = global.DS_BEUTE.rnd(20); showLoot(); };
+        lootRow.appendChild(roll); lootRow.appendChild(tsel); lootRow.appendChild(reroll);
+        lootSection.appendChild(lootRow);
+
+        var lootOut = h('<div class="loot-out"></div>');
+        lootSection.appendChild(lootOut);
+
+        var showLoot = function () {
+          var v = parseInt(roll.value, 10);
+          lootOut.innerHTML = "";
+          if (isNaN(v)) { S.begegnungUpdate(e.id, { beute: null }); return; }
+          if (v < 1) { v = 1; roll.value = 1; }
+          if (v > 20) { v = 20; roll.value = 20; }
+          var zg = global.DS_BEUTE.ziehung(tsel.value, { forcedRoll: v });
+          S.begegnungUpdate(e.id, { beute: { tabelle: tsel.value, roll: v, ziehung: zg } });
+          (zg.zeilen || []).forEach(function (zl) {
+            lootOut.appendChild(h('<div class="loot-line" style="margin-left:' + (zl.tiefe * 14) + 'px">' + (zl.tiefe ? "" : "• ") + esc(zl.text) + '</div>'));
+          });
+          if (!(zg.zeilen || []).length) lootOut.appendChild(h('<div class="muted" style="font-size:12px">— kein Eintrag —</div>'));
+        };
+        roll.addEventListener("input", showLoot);
+        roll.addEventListener("keydown", function (ev) { if (ev.key === "Enter") ev.preventDefault(); });
+        tsel.onchange = showLoot;
+        if (e.beute) showLoot();
+        inst.appendChild(lootSection);
       }
 
       panel.appendChild(inst);
     });
-  }
-
-  function lootInstanz(e, m) {
-    var beute = global.DS_BEUTE.lootMonster(m);
-    S.begegnungUpdate(e.id, { beute: beute });
-    refreshBegegnung();
-  }
-  // Beute mit explizit gewählter Tabelle + Anzahl auswürfeln.
-  function lootInstanzMit(e, tabelle, anzahl) {
-    var z = [];
-    for (var i = 0; i < anzahl; i++) z.push(global.DS_BEUTE.ziehung(tabelle, {}));
-    S.begegnungUpdate(e.id, { beute: { tabelle: tabelle, anzahl: anzahl, ziehungen: z } });
-    refreshBegegnung();
-  }
-
-  // Beute eines Gegners als Block rendern.
-  function renderLoot(beute) {
-    var box = h('<div class="loot-box"></div>');
-    box.appendChild(h('<div class="muted" style="font-size:11px">Beute (Tabelle ' + beute.tabelle + ', ' + beute.anzahl + ' Fund' + (beute.anzahl > 1 ? "e" : "") + ')</div>'));
-    (beute.ziehungen || []).forEach(function (z) {
-      (z.zeilen || []).forEach(function (zl) {
-        box.appendChild(h('<div style="margin-left:' + (zl.tiefe * 14) + 'px;font-size:13px">' + (zl.tiefe ? "" : "• ") + esc(zl.text) + '</div>'));
-      });
-    });
-    return box;
   }
 
   function openZustaende(e) {

@@ -203,6 +203,13 @@ hr.sep { border: none; border-top: 1px solid var(--line); margin: 16px 0; }
 .beute-erg { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-top: 8px; font-size: 14px; }
 .beute-erg > div { padding: 1px 0; }
 .enc-loot { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.enc-loot[hidden] { display: none; }
+.loot-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.loot-controls .loot-roll { width: 64px; text-align: center; font-weight: 700; }
+.loot-controls .loot-tab { max-width: 190px; }
+.loot-out { margin-top: 8px; background: rgba(200,148,63,.08); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
+.loot-out:empty { display: none; }
+.loot-out .loot-line { padding: 1px 0; font-size: 13px; }
 .loot-box { background: rgba(200,148,63,.08); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
 .loot-box > div { padding: 1px 0; }
 
