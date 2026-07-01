@@ -1059,14 +1059,13 @@
     var chips = h('<div class="chip-row"></div>');
     MONSTER_GRUPPEN.forEach(function (g) {
       var chip = h('<span class="chip' + (state.monster.gruppe === g ? " active" : "") + '">' + g + '</span>');
-      chip.onclick = function () { state.monster.gruppe = g; state.monster.limit = MONSTER_LIMIT; render(); };
+      chip.onclick = function () { state.monster.gruppe = g; render(); };
       chips.appendChild(chip);
     });
     wrap.appendChild(chips);
     var suche = h('<input type="text" id="m-suche" placeholder="🔎 Suche (Name)…" value="' + esc(state.monster.suche) + '" style="max-width:280px;margin-bottom:12px"/>');
     suche.addEventListener("input", function () {
       state.monster.suche = suche.value;
-      state.monster.limit = MONSTER_LIMIT;
       var cur = suche.selectionStart;
       renderCardsOnly();
       var s2 = document.getElementById("m-suche"); if (s2) { s2.focus(); s2.setSelectionRange(cur, cur); }
@@ -1088,19 +1087,14 @@
     });
   }
 
-  var MONSTER_LIMIT = 24; // wie viele Karten anfangs zeigen (Pagination)
-
   function renderCardsOnly() {
     var box = document.getElementById("m-cards");
     if (!box) return;
     box.innerHTML = "";
     var liste = gefilterteMonster();
-    var limit = state.monster.limit || MONSTER_LIMIT;
-    var sichtbar = liste.slice(0, limit);
-    box.appendChild(h('<div class="help" style="margin-bottom:8px">' + liste.length + ' Treffer' +
-      (liste.length > sichtbar.length ? ' · ' + sichtbar.length + ' angezeigt' : '') + '</div>'));
+    box.appendChild(h('<div class="help" style="margin-bottom:8px">' + liste.length + ' Treffer</div>'));
     var grid = h('<div class="grid grid-cards"></div>');
-    sichtbar.forEach(function (m) {
+    liste.forEach(function (m) {
       var card = h('<div class="card mcard">' +
         '<span class="ghbadge">GH ' + (m.gh != null ? m.gh : "?") + ' · ' + m.ep + ' EP</span>' +
         '<div class="mname">' + esc(m.name) + '</div>' +
@@ -1116,11 +1110,6 @@
       grid.appendChild(card);
     });
     box.appendChild(grid);
-    if (liste.length > sichtbar.length) {
-      var mehr = h('<button class="btn" style="margin-top:14px;width:100%">Mehr anzeigen (' + (liste.length - sichtbar.length) + ' weitere)</button>');
-      mehr.onclick = function () { state.monster.limit = limit + MONSTER_LIMIT; renderCardsOnly(); };
-      box.appendChild(mehr);
-    }
   }
 
   // Panel-Baustein. sticky=true für die kompakte Anzeige im Bestiarium-Tab.
@@ -1139,13 +1128,15 @@
     var wrap = h('<div></div>');
     var head = h('<div class="inline" style="justify-content:space-between;width:100%;margin-bottom:10px"></div>');
     head.appendChild(h('<h2 style="margin:0">⚔️ Begegnung</h2>'));
-    var addBtn = h('<button class="btn btn-primary">+ Monster aus dem Bestiarium</button>');
+    var addBtn = h('<button class="btn btn-primary">+ Monster</button>');
     addBtn.onclick = function () { go("monster"); };
     head.appendChild(addBtn);
     wrap.appendChild(head);
     wrap.appendChild(begegnungPanel(false));
-    wrap.appendChild(beutePanel());
-    wrap.appendChild(h('<div class="help" style="margin-top:10px">Tipp: Monster fügst du im Tab „🐉 Monster" hinzu — die Begegnung bleibt dort oben sichtbar.</div>'));
+    // Freie Beute (Truhen) nur als ein unaufdringlicher Link — öffnet einen Dialog.
+    var schatz = h('<div style="margin-top:12px"><button class="btn btn-subtle btn-sm">💰 Schatz/Truhe auswürfeln</button></div>');
+    schatz.querySelector("button").onclick = function () { openBeuteRoller(); };
+    wrap.appendChild(schatz);
     app.appendChild(wrap);
   }
   var ZUSTAENDE_PRESETS = ["Geblendet", "Schlafend", "Vergiftet", "Brennend", "Verlangsamt", "Gelähmt", "Niedergeschlagen", "Bewusstlos", "In Furcht", "Festgehalten", "Verwirrt", "Stumm"];
@@ -1409,74 +1400,78 @@
   var beuteErgebnisse = []; // { tabelle, ueberschrift, zeilen } — überlebt HP-Refreshes
   var BEUTE_TABS = [["A", "Münzen"], ["B", "Primitive Hum."], ["C", "Zivil. Wildnis"], ["D", "Zivil. Urban"], ["M", "Magisch"]];
 
-  function beutePanel() {
-    if (!global.DS_BEUTE || !R.beute) return h('<div></div>');
-    if (!state.beute) state.beute = { tabelle: "C", wuerfe: 1, pw: "", manuell: "" };
-    if (state.beuteOffen === undefined) state.beuteOffen = false;
+  // Freie Beute (Truhen/Schätze) — ein fokussierter Dialog statt Dauer-Panel.
+  function openBeuteRoller() {
+    if (!global.DS_BEUTE || !R.beute) return;
+    if (!state.beute) state.beute = { tabelle: "C", wuerfe: 1, pw: "" };
+    var overlay = h('<div class="overlay"></div>');
+    var modal = h('<div class="modal" style="max-width:560px"></div>');
+    var head = h('<div class="modal-head"><h2>💰 Schatz auswürfeln</h2></div>');
+    var close = h('<button class="btn btn-sm no-print">Schließen ✕</button>'); close.onclick = closeBeuteRoller;
+    head.appendChild(close); modal.appendChild(head);
+    var body = h('<div class="modal-body"></div>');
+    modal.appendChild(body); overlay.appendChild(modal);
+    overlay.addEventListener("click", function (ev) { if (ev.target === overlay) closeBeuteRoller(); });
+    document.addEventListener("keydown", escCloseBeuteRoller);
+    document.body.appendChild(overlay); overlay.id = "beute-roller";
+    fillBeuteRoller(body);
+  }
+  function escCloseBeuteRoller(ev) { if (ev.key === "Escape") closeBeuteRoller(); }
+  function closeBeuteRoller() {
+    var o = document.getElementById("beute-roller");
+    if (o) o.remove();
+    document.removeEventListener("keydown", escCloseBeuteRoller);
+  }
+  function fillBeuteRoller(body) {
     var st = state.beute;
-    var p = h('<div class="panel"></div>');
-    // Einklappbarer Kopf — standardmäßig zu, da Nebenfunktion (Truhen)
-    var phead = h('<div class="inline" style="justify-content:space-between;width:100%;cursor:pointer"></div>');
-    phead.appendChild(h('<h2 style="margin:0">💰 Freie Beute <span class="muted" style="font-weight:400;font-size:14px">· Truhen & Schätze</span></h2>'));
-    phead.appendChild(h('<button class="btn btn-sm btn-subtle">' + (state.beuteOffen ? "▲" : "▼") + '</button>'));
-    phead.onclick = function () { state.beuteOffen = !state.beuteOffen; render(); };
-    p.appendChild(phead);
-    if (!state.beuteOffen && !beuteErgebnisse.length) return p;
-    if (!state.beuteOffen) { // zu, aber es gibt Ergebnisse -> nur die zeigen lassen über Öffnen
-      p.appendChild(h('<div class="help" style="margin-top:4px">' + beuteErgebnisse.length + ' Ergebnis(se) — zum Ansehen öffnen.</div>'));
-      return p;
-    }
-    p.appendChild(h('<div class="help" style="margin:6px 0 8px">Für Schätze ohne Gegner (Truhen, Horte). Gegner-Beute kommt direkt beim besiegten Monster oben („💰 Looten"). Spieler würfelt W20 selbst — oder „🎲 Auswürfeln" löst Verweise + Münzwürfe auf. Mit Probenwert (PW): Wurf ≤ PW = Treffer.</div>'));
-
+    body.innerHTML = "";
+    body.appendChild(h('<div class="help" style="margin-bottom:8px">Für Schätze ohne Gegner (Truhen, Horte). Spieler würfelt W20 selbst — oder „🎲 Auswürfeln" löst Verweise + Münzwürfe auf. Mit Probenwert (PW): Wurf ≤ PW = Treffer.</div>'));
     var chips = h('<div class="chip-row"></div>');
     BEUTE_TABS.forEach(function (tb) {
       var chip = h('<span class="chip' + (st.tabelle === tb[0] ? " active" : "") + '">' + tb[1] + ' (' + tb[0] + ')</span>');
-      chip.onclick = function () { st.tabelle = tb[0]; render(); };
+      chip.onclick = function () { st.tabelle = tb[0]; fillBeuteRoller(body); };
       chips.appendChild(chip);
     });
     var more = h('<select style="max-width:150px"></select>');
     more.appendChild(h('<option value="">weitere…</option>'));
     Object.keys(R.beute).forEach(function (id) { more.appendChild(h('<option value="' + id + '"' + (st.tabelle === id ? " selected" : "") + '>' + id + ' · ' + esc(R.beute[id].name).slice(0, 24) + '</option>')); });
-    more.onchange = function () { if (more.value) { st.tabelle = more.value; render(); } };
+    more.onchange = function () { if (more.value) { st.tabelle = more.value; fillBeuteRoller(body); } };
     chips.appendChild(more);
-    p.appendChild(chips);
+    body.appendChild(chips);
 
-    var row = h('<div class="inline" style="flex-wrap:wrap;gap:10px;margin:6px 0"></div>');
+    var row = h('<div class="inline" style="flex-wrap:wrap;gap:10px;margin:8px 0"></div>');
     var wuerfe = h('<input type="number" min="1" value="' + (st.wuerfe || 1) + '" title="Anzahl Würfe" style="width:70px"/>');
-    wuerfe.onchange = function () { st.wuerfe = Math.max(1, parseInt(wuerfe.value, 10) || 1); };
-    var pw = h('<input type="number" placeholder="PW (optional)" value="' + esc(st.pw) + '" title="Probenwert — leer = probenlos" style="width:130px"/>');
-    pw.onchange = function () { st.pw = pw.value; };
+    var pw = h('<input type="number" placeholder="PW (optional)" value="' + esc(st.pw) + '" style="width:130px"/>');
     var btnAuto = h('<button class="btn btn-primary">🎲 Auswürfeln</button>');
     btnAuto.onclick = function () {
-      var n = Math.max(1, parseInt(wuerfe.value, 10) || 1);
+      st.wuerfe = Math.max(1, parseInt(wuerfe.value, 10) || 1); st.pw = pw.value;
       var opts = pw.value ? { mode: "probe", pw: parseInt(pw.value, 10) } : {};
-      for (var i = 0; i < n; i++) { var z = global.DS_BEUTE.ziehung(st.tabelle, opts); z.tabelle = st.tabelle; beuteErgebnisse.unshift(z); }
-      render();
+      for (var i = 0; i < st.wuerfe; i++) { var z = global.DS_BEUTE.ziehung(st.tabelle, opts); z.tabelle = st.tabelle; beuteErgebnisse.unshift(z); }
+      fillBeuteRoller(body);
     };
     row.appendChild(h('<span class="enc-meta">Würfe</span>')); row.appendChild(wuerfe);
     row.appendChild(pw); row.appendChild(btnAuto);
-    p.appendChild(row);
+    body.appendChild(row);
 
-    var row2 = h('<div class="inline" style="flex-wrap:wrap;gap:8px;margin-bottom:6px"></div>');
+    var row2 = h('<div class="inline" style="flex-wrap:wrap;gap:8px"></div>');
     var man = h('<input type="number" placeholder="eigener W20…" style="width:130px"/>');
     var btnMan = h('<button class="btn">✍️ Wurf anwenden</button>');
     btnMan.onclick = function () {
       var v = parseInt(man.value, 10); if (isNaN(v)) { toast("W20-Ergebnis eingeben."); return; }
       var opts = pw.value ? { mode: "probe", pw: parseInt(pw.value, 10), forcedRoll: v } : { forcedRoll: v };
-      var z = global.DS_BEUTE.ziehung(st.tabelle, opts); z.tabelle = st.tabelle; beuteErgebnisse.unshift(z); man.value = ""; render();
+      var z = global.DS_BEUTE.ziehung(st.tabelle, opts); z.tabelle = st.tabelle; beuteErgebnisse.unshift(z); fillBeuteRoller(body);
     };
-    var btnTab = h('<button class="btn btn-subtle">📖 Tabelle ansehen</button>');
+    var btnTab = h('<button class="btn btn-subtle">📖 Tabelle</button>');
     btnTab.onclick = function () { openBeuteTabelle(st.tabelle); };
     row2.appendChild(man); row2.appendChild(btnMan); row2.appendChild(btnTab);
-    p.appendChild(row2);
+    body.appendChild(row2);
 
-    // Ergebnisse
     if (beuteErgebnisse.length) {
-      var head = h('<div class="inline" style="justify-content:space-between;width:100%;margin-top:6px"></div>');
-      head.appendChild(h('<h3 style="margin:0">Ergebnisse</h3>'));
+      var eh = h('<div class="inline" style="justify-content:space-between;width:100%;margin-top:12px"></div>');
+      eh.appendChild(h('<h3 style="margin:0">Ergebnisse</h3>'));
       var clr = h('<button class="btn btn-sm btn-danger">Leeren</button>');
-      clr.onclick = function () { beuteErgebnisse = []; render(); };
-      head.appendChild(clr); p.appendChild(head);
+      clr.onclick = function () { beuteErgebnisse = []; fillBeuteRoller(body); };
+      eh.appendChild(clr); body.appendChild(eh);
       beuteErgebnisse.forEach(function (z) {
         var card = h('<div class="beute-erg"></div>');
         card.appendChild(h('<div class="muted" style="font-size:12px">Tabelle ' + z.tabelle + (z.ueberschrift ? " · " + esc(z.ueberschrift) : "") + '</div>'));
@@ -1484,10 +1479,9 @@
         z.zeilen.forEach(function (zl) {
           card.appendChild(h('<div style="margin-left:' + (zl.tiefe * 16) + 'px">' + (zl.tiefe ? "" : "• ") + esc(zl.text) + ' <span class="muted" style="font-size:11px">' + esc(zl.info) + '</span></div>'));
         });
-        p.appendChild(card);
+        body.appendChild(card);
       });
     }
-    return p;
   }
 
   function openBeuteTabelle(id) {
