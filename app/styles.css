@@ -203,6 +203,18 @@ hr.sep { border: none; border-top: 1px solid var(--line); margin: 16px 0; }
 .enc-line2 { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .enc-line2 .pill { font-size: 13px; padding: 4px 11px; }
 .enc-line2 .btn { padding: 5px 11px; }
+
+/* Rundenzähler im Begegnungs-Kopf */
+.runde { display: inline-flex; align-items: center; gap: 6px; }
+.runde .enc-btn { padding: 5px 11px; min-width: 34px; font-size: 15px; }
+.runde-val { font-weight: 700; font-variant-numeric: tabular-nums; min-width: 74px; text-align: center; }
+
+/* Talent-Pills am Helden in der Begegnung (Nachschlagen per Klick) */
+.enc-talente { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+.enc-talente .talent-pill { font-size: 13px; padding: 4px 11px; }
+.talent-pill.active { background: var(--accent-2); border-color: var(--accent-2); color: #1a1407; font-weight: 600; }
+.enc-talent-text { margin-top: 6px; background: rgba(200,148,63,.08); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 13px; line-height: 1.5; }
+.enc-talent-text[hidden] { display: none; }
 .enc-meta { color: var(--muted); font-size: 12px; }
 .statblock { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px 12px; }
 .statblock .sb { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; font-size: 13px; display: flex; justify-content: space-between; }
