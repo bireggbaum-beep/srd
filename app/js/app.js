@@ -87,6 +87,7 @@
           '<div class="stats">' +
           '<span>LK <b>' + (kw2.lk != null ? kw2.lk : "—") + '</b></span>' +
           '<span>Abwehr <b>' + (kw2.abwehr != null ? kw2.abwehr : "—") + '</b></span>' +
+          '<span>Ini <b>' + (kw2.initiative != null ? kw2.initiative : "—") + '</b></span>' +
           '<span>Schl <b>' + (kw2.schlagen != null ? kw2.schlagen : "—") + '</b></span>' +
           '<span>Lauf <b>' + (kw2.laufen != null ? kw2.laufen + "m" : "—") + '</b></span>' +
           '</div>' +
@@ -123,20 +124,34 @@
   }
 
   // ---- Begleiter: reduzierter Statblock, eigener Charakter in der Gruppe ----
-  // Kein Volk/Klasse/EP/Talente — nur Name + 5 Kampfwerte + Notizen. Optional
-  // per Vorlage aus dem Bestiarium vorausgefüllt (einmalige Kopie, kein Link).
+  // Kein Volk/Klasse/EP/Talente — aber Attribute, Eigenschaften und Initiative
+  // sind dabei, denn er wird wie ein eigener Charakter gespielt und würfelt
+  // Proben (Attribut+Eigenschaft) genau wie alle anderen. Optional per Vorlage
+  // aus dem Bestiarium vorausgefüllt (einmalige Kopie, kein Link).
   function openBegleiterEditor(existing) {
     var b = existing ?
-      { id: existing.id, art: "begleiter", name: existing.name, vorlage: existing.vorlage || "", kw: Object.assign({}, existing.kw), notizen: existing.notizen || "" } :
-      { id: null, art: "begleiter", name: "", vorlage: "", kw: { lk: 10, abwehr: 8, schlagen: 8, schiessen: 0, laufen: 6 }, notizen: "" };
+      {
+        id: existing.id, art: "begleiter", name: existing.name, vorlage: existing.vorlage || "",
+        attribute: Object.assign({ koer: 5, agi: 6, gei: 1 }, existing.attribute),
+        eigenschaften: Object.assign({ st: 3, hae: 0, be: 3, ge: 0, ve: 0, au: 0 }, existing.eigenschaften),
+        kw: Object.assign({ lk: 11, abwehr: 6, initiative: 9, schlagen: 9, schiessen: 0, laufen: 6 }, existing.kw),
+        notizen: existing.notizen || ""
+      } :
+      {
+        id: null, art: "begleiter", name: "", vorlage: "",
+        attribute: { koer: 5, agi: 6, gei: 1 },
+        eigenschaften: { st: 3, hae: 0, be: 3, ge: 0, ve: 0, au: 0 },
+        kw: { lk: 11, abwehr: 6, initiative: 9, schlagen: 9, schiessen: 0, laufen: 6 },
+        notizen: ""
+      };
     var overlay = h('<div class="overlay"></div>');
-    var modal = h('<div class="modal" style="max-width:440px"></div>');
+    var modal = h('<div class="modal" style="max-width:480px"></div>');
     var head = h('<div class="modal-head"><h2>🐾 ' + (existing ? "Begleiter bearbeiten" : "Neuer Begleiter") + '</h2></div>');
     var close = h('<button class="btn btn-sm no-print">Schließen ✕</button>'); close.onclick = closeBegleiterEditor;
     head.appendChild(close); modal.appendChild(head);
     var body = h('<div class="modal-body"></div>');
 
-    body.appendChild(h('<div class="help" style="margin-bottom:10px">Wird als eigener Charakter in der Gruppe geführt — reduzierter Statblock statt vollem Regelwerk. Wer welchen Begleiter haben darf, entscheidet ihr am Tisch.</div>'));
+    body.appendChild(h('<div class="help" style="margin-bottom:10px">Wird als eigener Charakter in der Gruppe geführt — reduzierter Statblock statt vollem Regelwerk (keine Klasse, EP oder Talente), aber mit vollen Attribut-/Eigenschaftswerten für Proben. Wer welchen Begleiter haben darf, entscheidet ihr am Tisch.</div>'));
 
     var fName = h('<div class="field"><label>Name</label><input type="text" value="' + esc(b.name) + '" placeholder="z.B. Fenris"/></div>');
     var inName = fName.querySelector("input");
@@ -152,11 +167,32 @@
     }
     body.appendChild(fVorlage);
 
+    body.appendChild(h('<div class="help" style="margin:10px 0 4px">Attribute &amp; Eigenschaften <span class="muted">(für Proben)</span></div>'));
+    var attrRow = h('<div class="row"></div>');
+    var attrFields = [["koer", "KÖR"], ["agi", "AGI"], ["gei", "GEI"]];
+    var attrInputs = {};
+    attrFields.forEach(function (af) {
+      var f = h('<div class="field" style="max-width:70px"><label>' + af[1] + '</label><input type="number" value="' + b.attribute[af[0]] + '"/></div>');
+      attrInputs[af[0]] = f.querySelector("input");
+      attrRow.appendChild(f);
+    });
+    body.appendChild(attrRow);
+    var eigRow = h('<div class="row"></div>');
+    var eigFields = [["st", "ST"], ["hae", "HÄ"], ["be", "BE"], ["ge", "GE"], ["ve", "VE"], ["au", "AU"]];
+    var eigInputs = {};
+    eigFields.forEach(function (ef) {
+      var f = h('<div class="field" style="max-width:60px"><label>' + ef[1] + '</label><input type="number" value="' + b.eigenschaften[ef[0]] + '"/></div>');
+      eigInputs[ef[0]] = f.querySelector("input");
+      eigRow.appendChild(f);
+    });
+    body.appendChild(eigRow);
+
+    body.appendChild(h('<div class="help" style="margin:10px 0 4px">Kampfwerte</div>'));
     var statRow = h('<div class="row"></div>');
-    var statFields = [["lk", "LK"], ["abwehr", "Abwehr"], ["schlagen", "Schlagen"], ["schiessen", "Schießen"], ["laufen", "Laufen (m)"]];
+    var statFields = [["lk", "LK"], ["abwehr", "Abwehr"], ["initiative", "Initiative"], ["schlagen", "Schlagen"], ["schiessen", "Schießen"], ["laufen", "Laufen (m)"]];
     var statInputs = {};
     statFields.forEach(function (sf) {
-      var f = h('<div class="field" style="max-width:100px"><label>' + sf[1] + '</label><input type="number" value="' + (b.kw[sf[0]] != null ? b.kw[sf[0]] : 0) + '"/></div>');
+      var f = h('<div class="field" style="max-width:90px"><label>' + sf[1] + '</label><input type="number" value="' + (b.kw[sf[0]] != null ? b.kw[sf[0]] : 0) + '"/></div>');
       statInputs[sf[0]] = f.querySelector("input");
       statRow.appendChild(f);
     });
@@ -165,8 +201,11 @@
     inVorlage.addEventListener("change", function () {
       var m = (R.monster || []).filter(function (x) { return x.name === inVorlage.value; })[0];
       if (!m) return;
+      if (m.attr) attrFields.forEach(function (af) { attrInputs[af[0]].value = m.attr[af[0]] != null ? m.attr[af[0]] : 0; });
+      if (m.eig) eigFields.forEach(function (ef) { eigInputs[ef[0]].value = m.eig[ef[0]] != null ? m.eig[ef[0]] : 0; });
       statInputs.lk.value = m.kw.lk != null ? m.kw.lk : 0;
       statInputs.abwehr.value = m.kw.abwehr != null ? m.kw.abwehr : 0;
+      statInputs.initiative.value = m.kw.init != null ? m.kw.init : 0;
       statInputs.schlagen.value = m.kw.schlagen != null ? m.kw.schlagen : 0;
       statInputs.schiessen.value = m.kw.schiessen != null ? m.kw.schiessen : 0;
       statInputs.laufen.value = m.kw.laufen != null ? m.kw.laufen : 0;
@@ -184,6 +223,8 @@
       var name = inName.value.trim();
       if (!name) { toast("Bitte einen Namen eingeben."); return; }
       b.name = name; b.vorlage = inVorlage.value.trim();
+      attrFields.forEach(function (af) { b.attribute[af[0]] = parseInt(attrInputs[af[0]].value, 10) || 0; });
+      eigFields.forEach(function (ef) { b.eigenschaften[ef[0]] = parseInt(eigInputs[ef[0]].value, 10) || 0; });
       statFields.forEach(function (sf) { b.kw[sf[0]] = parseInt(statInputs[sf[0]].value, 10) || 0; });
       b.notizen = taNotiz.value;
       if (!b.id) b.id = S.eindeutigeId(b.name);
@@ -1429,7 +1470,8 @@
           if (val == null || val === "") return "";
           return '<span title="' + titel + '">' + label + ' <b>' + val + (suffix || "") + '</b></span>';
         };
-        var statsHtml = stat("Schl", "Schlagen", kw.schlagen) + stat("Schie", "Schießen", kw.schiessen) +
+        var initWert = kw.initiative != null ? kw.initiative : kw.init;
+        var statsHtml = stat("Ini", "Initiative", initWert) + stat("Schl", "Schlagen", kw.schlagen) + stat("Schie", "Schießen", kw.schiessen) +
           stat("Abw", "Abwehr", kw.abwehr) + stat("Lauf", "Laufen", kw.laufen, " m");
         if (statsHtml) inst.appendChild(h('<div class="enc-stats mstats">' + statsHtml + '</div>'));
       }
