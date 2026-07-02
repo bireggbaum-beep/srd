@@ -134,7 +134,12 @@
     catch (e) { return []; }
   }
   function begegnungSave(list) { localStorage.setItem(BKEY, JSON.stringify(list)); }
-  function begegnungClear() { begegnungSave([]); }
+  function begegnungClear() { begegnungSave([]); begegnungRundeSet(1); }
+
+  // Rundenzähler (persistiert getrennt von der Kreaturenliste).
+  var RKEY = "ds4_begegnung_runde";
+  function begegnungRunde() { var n = parseInt(localStorage.getItem(RKEY), 10); return isNaN(n) || n < 1 ? 1 : n; }
+  function begegnungRundeSet(n) { localStorage.setItem(RKEY, String(Math.max(1, n | 0))); }
 
   function begId() { return "b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
@@ -190,6 +195,8 @@
     seedIfEmpty: seedIfEmpty,
     begegnungLoad: begegnungLoad,
     begegnungSave: begegnungSave,
+    begegnungRunde: begegnungRunde,
+    begegnungRundeSet: begegnungRundeSet,
     begegnungAddInstanz: begegnungAddInstanz,
     begegnungAddHeld: begegnungAddHeld,
     begegnungUpdate: begegnungUpdate,

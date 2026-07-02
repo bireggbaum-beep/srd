@@ -1397,8 +1397,17 @@
       (list.length ? "(" + lebend.length + "/" + list.length + " aktiv · Σ " + sumEp + " EP · max GH " + maxGh + ")" : "(leer)") + '</span></h2>'));
     if (list.length) {
       var btns = h('<div class="inline"></div>');
+      // Rundenzähler — direkt am Kampf, überlebt HP-Refreshes (persistiert).
+      var rnd = h('<div class="runde"></div>');
+      var rMinus = h('<button class="btn enc-btn" title="Runde zurück">−</button>');
+      var rVal = h('<span class="runde-val" title="aktuelle Runde">Runde ' + S.begegnungRunde() + '</span>');
+      var rPlus = h('<button class="btn enc-btn" title="nächste Runde">＋</button>');
+      rMinus.onclick = function () { S.begegnungRundeSet(S.begegnungRunde() - 1); rVal.textContent = "Runde " + S.begegnungRunde(); };
+      rPlus.onclick = function () { S.begegnungRundeSet(S.begegnungRunde() + 1); rVal.textContent = "Runde " + S.begegnungRunde(); };
+      rnd.appendChild(rMinus); rnd.appendChild(rVal); rnd.appendChild(rPlus);
+      btns.appendChild(rnd);
       var clear = h('<button class="btn btn-sm btn-danger">Leeren</button>');
-      clear.onclick = function () { if (confirm("Begegnung leeren?")) { S.begegnungClear(); refreshBegegnung(); } };
+      clear.onclick = function () { if (confirm("Begegnung leeren? (setzt auch die Runde zurück)")) { S.begegnungClear(); refreshBegegnung(); } };
       btns.appendChild(clear);
       head.appendChild(btns);
     }
@@ -1498,6 +1507,30 @@
       addZ.onclick = function () { openZustaende(e); };
       z2.appendChild(addZ);
       inst.appendChild(z2);
+
+      // Talente des Helden — Pills zum Nachschlagen. Klick färbt die Pill gold
+      // und blendet ihren Text darunter ein (nur eine offen; erneuter Klick zu).
+      if (char && !isBegleiter && char.talente && char.talente.length) {
+        var tRow = h('<div class="enc-talente"></div>');
+        var tText = h('<div class="enc-talent-text" hidden></div>');
+        char.talente.slice().sort(function (a, b) { return a.name.localeCompare(b.name, "de"); }).forEach(function (t) {
+          var def = E.talentDef ? E.talentDef(t.name) : null;
+          var pill = h('<span class="pill talent-pill" style="cursor:pointer">' + esc(t.name) + ' ' + roman(t.rang) + '</span>');
+          pill.onclick = function () {
+            var wasActive = pill.classList.contains("active");
+            tRow.querySelectorAll(".talent-pill").forEach(function (x) { x.classList.remove("active"); });
+            if (wasActive) { tText.hidden = true; tText.innerHTML = ""; return; }
+            pill.classList.add("active");
+            tText.innerHTML = def
+              ? '<b>' + esc(t.name) + ' ' + roman(t.rang) + '</b><div style="white-space:pre-line;margin-top:2px">' + esc(def.beschreibung) + '</div>'
+              : '<span class="muted">Keine Beschreibung hinterlegt.</span>';
+            tText.hidden = false;
+          };
+          tRow.appendChild(pill);
+        });
+        inst.appendChild(tRow);
+        inst.appendChild(tText);
+      }
 
       // Zeile 3: Beute — nur Monster, nur wenn besiegt. Über den Beutel aufklappbar.
       // W20-Wurf eintippen/auswählen (1–20) → zeigt live die Beute laut Tabelle.
