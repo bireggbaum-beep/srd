@@ -41,6 +41,11 @@
 
   function go(view, id) { state.view = view; if (id !== undefined) state.currentId = id; render(); window.scrollTo(0, 0); }
 
+  // Kampfwerte eines Begleiters mit Fallback — ältere Datensätze (vor
+  // Einführung von Initiative etc.) sollen nicht klaffend leer aussehen.
+  var BEGLEITER_KW_DEFAULT = { lk: 10, abwehr: 8, initiative: 6, schlagen: 8, schiessen: 0, laufen: 6 };
+  function begleiterKw(c) { return Object.assign({}, BEGLEITER_KW_DEFAULT, c.kw); }
+
   // ===========================================================================
   // ROSTER
   // ===========================================================================
@@ -79,17 +84,17 @@
     roster.forEach(function (c) {
       var card;
       if (c.art === "begleiter") {
-        var kw2 = c.kw || {};
+        var kw2 = begleiterKw(c);
         card = h(
           '<div class="card">' +
           '<div class="name">🐾 ' + esc(c.name) + '</div>' +
           '<div class="sub">Begleiter' + (c.vorlage ? ' · ' + esc(c.vorlage) : '') + '</div>' +
           '<div class="stats">' +
-          '<span>LK <b>' + (kw2.lk != null ? kw2.lk : "—") + '</b></span>' +
-          '<span>Abwehr <b>' + (kw2.abwehr != null ? kw2.abwehr : "—") + '</b></span>' +
-          '<span>Ini <b>' + (kw2.initiative != null ? kw2.initiative : "—") + '</b></span>' +
-          '<span>Schl <b>' + (kw2.schlagen != null ? kw2.schlagen : "—") + '</b></span>' +
-          '<span>Lauf <b>' + (kw2.laufen != null ? kw2.laufen + "m" : "—") + '</b></span>' +
+          '<span>LK <b>' + kw2.lk + '</b></span>' +
+          '<span>Abwehr <b>' + kw2.abwehr + '</b></span>' +
+          '<span>Ini <b>' + kw2.initiative + '</b></span>' +
+          '<span>Schl <b>' + kw2.schlagen + '</b></span>' +
+          '<span>Lauf <b>' + kw2.laufen + 'm</b></span>' +
           '</div>' +
           '</div>');
         card.onclick = function () { openBegleiterEditor(c); };
@@ -105,6 +110,7 @@
           '<span>Stufe <b>' + c.stufe + '</b></span>' +
           '<span>EP <b>' + c.ep + '</b></span>' +
           '<span>LK <b>' + kw.lebenskraft + '</b></span>' +
+          '<span>Ini <b>' + kw.initiative + '</b></span>' +
           '<span>Abwehr <b>' + kw.abwehr + '</b></span>' +
           '</div>' +
           '<div class="stats" style="margin-top:8px">' +
@@ -1407,7 +1413,7 @@
       var m = isHeld ? null : bySlug[e.slug];
       var char = isHeld ? S.get(e.charId) : null;
       var isBegleiter = !!(char && char.art === "begleiter");
-      var kw = isHeld ? (char ? (isBegleiter ? char.kw : E.kampfwerte(char)) : {}) : (m ? m.kw : {});
+      var kw = isHeld ? (char ? (isBegleiter ? begleiterKw(char) : E.kampfwerte(char)) : {}) : (m ? m.kw : {});
       var frac = e.lkMax ? Math.max(0, e.lk) / e.lkMax : 0;
       var farbe = e.tot ? "var(--muted)" : (frac <= 0.25 ? "var(--bad)" : (frac <= 0.6 ? "var(--accent-2)" : "var(--good)"));
       var inst = h('<div class="enc-inst' + (e.tot ? " tot" : "") + (isHeld ? " held" : "") + '"></div>');
