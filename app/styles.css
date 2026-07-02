@@ -119,6 +119,17 @@ td.num, th.num { text-align: right; }
 .btn-burger { background: none; border: 1px solid transparent; color: var(--muted); padding: 8px 10px; font-size: 16px; line-height: 1; }
 .btn-burger:hover { color: var(--ink); border-color: var(--line); }
 
+/* ---- Orakel ---- */
+.orakel-stufen { justify-content: center; }
+.orakel-result { text-align: center; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.orakel-result[hidden] { display: none; }
+.orakel-dice { font-size: 26px; letter-spacing: 2px; font-variant-numeric: tabular-nums; }
+.orakel-titel { font-size: 24px; font-weight: 700; margin-top: 8px; }
+.orakel-titel.ja { color: var(--good); }
+.orakel-titel.nein { color: var(--bad); }
+.orakel-text { margin-top: 6px; font-size: 14px; line-height: 1.5; }
+.orakel-meta { margin-top: 10px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
 /* ---- Tabs ---- */
 .tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--line); margin: 16px 0; flex-wrap: wrap; }
 .tab { background: none; border: none; color: var(--muted); padding: 8px 12px; cursor: pointer; border-bottom: 2px solid transparent; font-size: 14px; }
