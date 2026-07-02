@@ -51,10 +51,13 @@
     var head = h('<div class="inline" style="justify-content:space-between;margin-bottom:16px;width:100%"></div>');
     head.appendChild(h('<h2 style="margin:0">Gruppe <span class="muted">(' + roster.length + ')</span></h2>'));
     var actions = h('<div class="inline"></div>');
-    // "+ Neuer Charakter" steht bereits prominent in der Topnav -> hier nur Zufall + Export
+    // "+ Neuer Charakter" steht bereits prominent in der Topnav -> hier nur Zufall + Begleiter + Export
     var btnGen = h('<button class="btn">🎲 Zufallscharakter</button>');
     btnGen.onclick = function () { go("generator"); };
     actions.appendChild(btnGen);
+    var btnBeg = h('<button class="btn">🐾 + Begleiter</button>');
+    btnBeg.onclick = function () { openBegleiterEditor(null); };
+    actions.appendChild(btnBeg);
     if (roster.length) {
       var btnExport = h('<button class="btn">Gruppe exportieren</button>');
       btnExport.onclick = function () { S.exportRoster(); toast("roster.json heruntergeladen."); };
@@ -74,25 +77,42 @@
 
     var grid = h('<div class="grid grid-cards"></div>');
     roster.forEach(function (c) {
-      var kw = E.kampfwerte(c);
-      var sub = c.volk + " " + c.klasse + (c.unterklasse ? " · " + c.unterklasse : "") +
-        (c.heldenklasse ? " · " + c.heldenklasse : "");
-      var card = h(
-        '<div class="card">' +
-        '<div class="name">' + esc(c.name) + '</div>' +
-        '<div class="sub">' + esc(sub) + '</div>' +
-        '<div class="stats">' +
-        '<span>Stufe <b>' + c.stufe + '</b></span>' +
-        '<span>EP <b>' + c.ep + '</b></span>' +
-        '<span>LK <b>' + kw.lebenskraft + '</b></span>' +
-        '<span>Abwehr <b>' + kw.abwehr + '</b></span>' +
-        '</div>' +
-        '<div class="stats" style="margin-top:8px">' +
-        (c.konten.lpOffen ? '<span class="pill good">' + c.konten.lpOffen + ' LP offen</span>' : '') +
-        (c.konten.tpOffen ? '<span class="pill good">' + c.konten.tpOffen + ' TP offen</span>' : '') +
-        '</div>' +
-        '</div>');
-      card.onclick = function () { state.tab = "uebersicht"; go("sheet", c.id); };
+      var card;
+      if (c.art === "begleiter") {
+        var kw2 = c.kw || {};
+        card = h(
+          '<div class="card">' +
+          '<div class="name">🐾 ' + esc(c.name) + '</div>' +
+          '<div class="sub">Begleiter' + (c.vorlage ? ' · ' + esc(c.vorlage) : '') + '</div>' +
+          '<div class="stats">' +
+          '<span>LK <b>' + (kw2.lk != null ? kw2.lk : "—") + '</b></span>' +
+          '<span>Abwehr <b>' + (kw2.abwehr != null ? kw2.abwehr : "—") + '</b></span>' +
+          '<span>Schl <b>' + (kw2.schlagen != null ? kw2.schlagen : "—") + '</b></span>' +
+          '<span>Lauf <b>' + (kw2.laufen != null ? kw2.laufen + "m" : "—") + '</b></span>' +
+          '</div>' +
+          '</div>');
+        card.onclick = function () { openBegleiterEditor(c); };
+      } else {
+        var kw = E.kampfwerte(c);
+        var sub = c.volk + " " + c.klasse + (c.unterklasse ? " · " + c.unterklasse : "") +
+          (c.heldenklasse ? " · " + c.heldenklasse : "");
+        card = h(
+          '<div class="card">' +
+          '<div class="name">' + esc(c.name) + '</div>' +
+          '<div class="sub">' + esc(sub) + '</div>' +
+          '<div class="stats">' +
+          '<span>Stufe <b>' + c.stufe + '</b></span>' +
+          '<span>EP <b>' + c.ep + '</b></span>' +
+          '<span>LK <b>' + kw.lebenskraft + '</b></span>' +
+          '<span>Abwehr <b>' + kw.abwehr + '</b></span>' +
+          '</div>' +
+          '<div class="stats" style="margin-top:8px">' +
+          (c.konten.lpOffen ? '<span class="pill good">' + c.konten.lpOffen + ' LP offen</span>' : '') +
+          (c.konten.tpOffen ? '<span class="pill good">' + c.konten.tpOffen + ' TP offen</span>' : '') +
+          '</div>' +
+          '</div>');
+        card.onclick = function () { state.tab = "uebersicht"; go("sheet", c.id); };
+      }
       var toBeg = h('<button class="btn btn-sm btn-subtle" style="margin-top:10px" title="zur Begegnung hinzufügen">⚔️ Zur Begegnung</button>');
       toBeg.onclick = function (ev) { ev.stopPropagation(); S.begegnungAddHeld(c); toast(c.name + " zur Begegnung."); };
       card.appendChild(toBeg);
@@ -100,6 +120,102 @@
     });
     wrap.appendChild(grid);
     app.appendChild(wrap);
+  }
+
+  // ---- Begleiter: reduzierter Statblock, eigener Charakter in der Gruppe ----
+  // Kein Volk/Klasse/EP/Talente — nur Name + 5 Kampfwerte + Notizen. Optional
+  // per Vorlage aus dem Bestiarium vorausgefüllt (einmalige Kopie, kein Link).
+  function openBegleiterEditor(existing) {
+    var b = existing ?
+      { id: existing.id, art: "begleiter", name: existing.name, vorlage: existing.vorlage || "", kw: Object.assign({}, existing.kw), notizen: existing.notizen || "" } :
+      { id: null, art: "begleiter", name: "", vorlage: "", kw: { lk: 10, abwehr: 8, schlagen: 8, schiessen: 0, laufen: 6 }, notizen: "" };
+    var overlay = h('<div class="overlay"></div>');
+    var modal = h('<div class="modal" style="max-width:440px"></div>');
+    var head = h('<div class="modal-head"><h2>🐾 ' + (existing ? "Begleiter bearbeiten" : "Neuer Begleiter") + '</h2></div>');
+    var close = h('<button class="btn btn-sm no-print">Schließen ✕</button>'); close.onclick = closeBegleiterEditor;
+    head.appendChild(close); modal.appendChild(head);
+    var body = h('<div class="modal-body"></div>');
+
+    body.appendChild(h('<div class="help" style="margin-bottom:10px">Wird als eigener Charakter in der Gruppe geführt — reduzierter Statblock statt vollem Regelwerk. Wer welchen Begleiter haben darf, entscheidet ihr am Tisch.</div>'));
+
+    var fName = h('<div class="field"><label>Name</label><input type="text" value="' + esc(b.name) + '" placeholder="z.B. Fenris"/></div>');
+    var inName = fName.querySelector("input");
+    body.appendChild(fName);
+
+    var fVorlage = h('<div class="field"><label>Vorlage aus dem Bestiarium (optional, kopiert die Werte einmalig)</label>' +
+      '<input type="text" list="beg-vorlagen" placeholder="z.B. Wolf" value="' + esc(b.vorlage) + '"/></div>');
+    var inVorlage = fVorlage.querySelector("input");
+    if (!document.getElementById("beg-vorlagen")) {
+      var dl = h('<datalist id="beg-vorlagen"></datalist>');
+      (R.monster || []).forEach(function (m) { dl.appendChild(h('<option value="' + esc(m.name) + '"></option>')); });
+      document.body.appendChild(dl);
+    }
+    body.appendChild(fVorlage);
+
+    var statRow = h('<div class="row"></div>');
+    var statFields = [["lk", "LK"], ["abwehr", "Abwehr"], ["schlagen", "Schlagen"], ["schiessen", "Schießen"], ["laufen", "Laufen (m)"]];
+    var statInputs = {};
+    statFields.forEach(function (sf) {
+      var f = h('<div class="field" style="max-width:100px"><label>' + sf[1] + '</label><input type="number" value="' + (b.kw[sf[0]] != null ? b.kw[sf[0]] : 0) + '"/></div>');
+      statInputs[sf[0]] = f.querySelector("input");
+      statRow.appendChild(f);
+    });
+    body.appendChild(statRow);
+
+    inVorlage.addEventListener("change", function () {
+      var m = (R.monster || []).filter(function (x) { return x.name === inVorlage.value; })[0];
+      if (!m) return;
+      statInputs.lk.value = m.kw.lk != null ? m.kw.lk : 0;
+      statInputs.abwehr.value = m.kw.abwehr != null ? m.kw.abwehr : 0;
+      statInputs.schlagen.value = m.kw.schlagen != null ? m.kw.schlagen : 0;
+      statInputs.schiessen.value = m.kw.schiessen != null ? m.kw.schiessen : 0;
+      statInputs.laufen.value = m.kw.laufen != null ? m.kw.laufen : 0;
+      toast(m.name + " übernommen — Werte bleiben frei editierbar.");
+    });
+
+    var fNotiz = h('<div class="field"><label>Notizen</label><textarea rows="3" placeholder="z.B. gezähmt in Sitzung 4…">' + esc(b.notizen) + '</textarea></div>');
+    var taNotiz = fNotiz.querySelector("textarea");
+    body.appendChild(fNotiz);
+
+    var btnRow = h('<div class="inline" style="margin-top:12px;justify-content:space-between"></div>');
+    var left = h('<div class="inline"></div>');
+    var save = h('<button class="btn btn-primary">Speichern</button>');
+    save.onclick = function () {
+      var name = inName.value.trim();
+      if (!name) { toast("Bitte einen Namen eingeben."); return; }
+      b.name = name; b.vorlage = inVorlage.value.trim();
+      statFields.forEach(function (sf) { b.kw[sf[0]] = parseInt(statInputs[sf[0]].value, 10) || 0; });
+      b.notizen = taNotiz.value;
+      if (!b.id) b.id = S.eindeutigeId(b.name);
+      S.upsert(b);
+      toast(b.name + " gespeichert.");
+      closeBegleiterEditor();
+      if (state.view === "roster") render(); else refreshBegegnung();
+    };
+    left.appendChild(save);
+    if (existing) {
+      var del = h('<button class="btn btn-danger">🗑 Löschen</button>');
+      del.onclick = function () {
+        if (confirm("„" + existing.name + "“ wirklich löschen?")) {
+          S.remove(existing.id); toast("Gelöscht."); closeBegleiterEditor();
+          if (state.view === "roster") render(); else refreshBegegnung();
+        }
+      };
+      left.appendChild(del);
+    }
+    btnRow.appendChild(left);
+    body.appendChild(btnRow);
+
+    modal.appendChild(body); overlay.appendChild(modal);
+    overlay.addEventListener("click", function (ev) { if (ev.target === overlay) closeBegleiterEditor(); });
+    document.addEventListener("keydown", escCloseBegleiterEditor);
+    document.body.appendChild(overlay); overlay.id = "begleiter-editor";
+  }
+  function escCloseBegleiterEditor(ev) { if (ev.key === "Escape") closeBegleiterEditor(); }
+  function closeBegleiterEditor() {
+    var o = document.getElementById("begleiter-editor");
+    if (o) o.remove();
+    document.removeEventListener("keydown", escCloseBegleiterEditor);
   }
 
   // ===========================================================================
@@ -1189,9 +1305,9 @@
     var addBtn = h('<button class="btn btn-primary">+ Monster</button>');
     addBtn.onclick = function () { go("monster"); };
     addWrap.appendChild(addBtn);
-    // + Held: Spielercharaktere aus dem Roster in den Tracker holen
+    // + Charakter: Helden UND Begleiter aus dem Roster in den Tracker holen
     var heldWrap = h('<div class="menu-wrap"></div>');
-    var heldBtn = h('<button class="btn">+ Held</button>');
+    var heldBtn = h('<button class="btn">+ Charakter</button>');
     var heldMenu = h('<div class="menu" hidden></div>');
     heldBtn.onclick = function (ev) {
       ev.stopPropagation();
@@ -1199,7 +1315,8 @@
       var roster = S.load();
       if (!roster.length) { heldMenu.appendChild(h('<button disabled>Keine Charaktere</button>')); }
       else roster.forEach(function (ch) {
-        var mi = h('<button>' + esc(ch.name) + ' <span class="muted" style="font-size:12px">· ' + esc(ch.klasse) + ' St.' + ch.stufe + '</span></button>');
+        var sub = ch.art === "begleiter" ? "Begleiter" : (esc(ch.klasse) + " St." + ch.stufe);
+        var mi = h('<button>' + (ch.art === "begleiter" ? "🐾 " : "") + esc(ch.name) + ' <span class="muted" style="font-size:12px">· ' + sub + '</span></button>');
         mi.onclick = function () { heldMenu.hidden = true; S.begegnungAddHeld(ch); toast(ch.name + " zur Begegnung."); refreshBegegnung(); };
         heldMenu.appendChild(mi);
       });
@@ -1248,15 +1365,17 @@
       var isHeld = e.typ === "held";
       var m = isHeld ? null : bySlug[e.slug];
       var char = isHeld ? S.get(e.charId) : null;
-      var kw = isHeld ? (char ? E.kampfwerte(char) : {}) : (m ? m.kw : {});
+      var isBegleiter = !!(char && char.art === "begleiter");
+      var kw = isHeld ? (char ? (isBegleiter ? char.kw : E.kampfwerte(char)) : {}) : (m ? m.kw : {});
       var frac = e.lkMax ? Math.max(0, e.lk) / e.lkMax : 0;
       var farbe = e.tot ? "var(--muted)" : (frac <= 0.25 ? "var(--bad)" : (frac <= 0.6 ? "var(--accent-2)" : "var(--good)"));
       var inst = h('<div class="enc-inst' + (e.tot ? " tot" : "") + (isHeld ? " held" : "") + '"></div>');
 
       // Zeile 1: Name + LK + Steuerung
       var z1 = h('<div class="enc-line1"></div>');
-      var name = h('<span class="en"><a style="cursor:pointer">' + (isHeld ? "🛡 " : "") + esc(e.label) + '</a></span>');
+      var name = h('<span class="en"><a style="cursor:pointer">' + (isHeld ? (isBegleiter ? "🐾 " : "🛡 ") : "") + esc(e.label) + '</a></span>');
       if (m) name.querySelector("a").onclick = function () { openMonster(m); };
+      else if (isBegleiter) name.querySelector("a").onclick = function () { openBegleiterEditor(char); };
       else if (char) name.querySelector("a").onclick = function () { openGesamt(char); };
       z1.appendChild(name);
       z1.appendChild(h('<span class="lkval" style="color:' + farbe + '">LK ' + Math.max(0, e.lk) + '/' + e.lkMax + '</span>'));

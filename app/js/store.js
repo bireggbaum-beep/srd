@@ -81,8 +81,8 @@
     var data = JSON.parse(text);
     var chars = Array.isArray(data) ? data : [data];
     chars.forEach(function (c) {
-      if (!c.id || !c.name || !c.eigenschaften)
-        throw new Error("Datei ist kein gültiger Dungeonslayers-Charakter.");
+      var gueltig = c.id && c.name && (c.eigenschaften || (c.art === "begleiter" && c.kw));
+      if (!gueltig) throw new Error("Datei ist kein gültiger Dungeonslayers-Charakter.");
     });
     return { chars: chars };
   }
@@ -155,11 +155,11 @@
     begegnungSave(list); return list;
   }
 
-  // Fügt einen Spielercharakter (aus dem Roster) zur Begegnung hinzu.
+  // Fügt einen Spielercharakter ODER Begleiter (aus dem Roster) zur Begegnung hinzu.
   function begegnungAddHeld(char) {
     var list = begegnungLoad();
     if (list.some(function (x) { return x.typ === "held" && x.charId === char.id; })) return list; // nicht doppelt
-    var lk = E.kampfwerte(char).lebenskraft;
+    var lk = char.art === "begleiter" ? (char.kw.lk || 0) : E.kampfwerte(char).lebenskraft;
     list.push({
       id: begId(), typ: "held", charId: char.id, label: char.name,
       lkMax: lk, lk: lk, zustaende: [], tot: false, notiz: ""
