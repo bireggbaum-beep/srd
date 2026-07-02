@@ -1349,7 +1349,21 @@
   function renderBegegnung() {
     var wrap = h('<div></div>');
     var head = h('<div class="inline" style="justify-content:space-between;width:100%;margin-bottom:10px"></div>');
-    head.appendChild(h('<h2 style="margin:0">⚔️ Begegnung</h2>'));
+    var left = h('<div class="inline"></div>');
+    left.appendChild(h('<h2 style="margin:0">⚔️ Begegnung</h2>'));
+    // Rundenzähler direkt an der Überschrift — bewusst weit weg von "Leeren",
+    // damit man beim Runde-hochzählen nicht aus Versehen die Begegnung leert.
+    // Immer sichtbar (unabhängig von der Kreaturenliste), damit er nicht
+    // verschwindet/erscheint, während man nur Kreaturen hinzufügt/entfernt.
+    var rnd = h('<div class="runde"></div>');
+    var rMinus = h('<button class="btn enc-btn" title="Runde zurück">−</button>');
+    var rVal = h('<span class="runde-val" title="aktuelle Runde">Runde ' + S.begegnungRunde() + '</span>');
+    var rPlus = h('<button class="btn enc-btn" title="nächste Runde">＋</button>');
+    rMinus.onclick = function () { S.begegnungRundeSet(S.begegnungRunde() - 1); rVal.textContent = "Runde " + S.begegnungRunde(); };
+    rPlus.onclick = function () { S.begegnungRundeSet(S.begegnungRunde() + 1); rVal.textContent = "Runde " + S.begegnungRunde(); };
+    rnd.appendChild(rMinus); rnd.appendChild(rVal); rnd.appendChild(rPlus);
+    left.appendChild(rnd);
+    head.appendChild(left);
     var addWrap = h('<div class="inline"></div>');
     var addBtn = h('<button class="btn btn-primary">+ Monster</button>');
     addBtn.onclick = function () { go("monster"); };
@@ -1397,15 +1411,6 @@
       (list.length ? "(" + lebend.length + "/" + list.length + " aktiv · Σ " + sumEp + " EP · max GH " + maxGh + ")" : "(leer)") + '</span></h2>'));
     if (list.length) {
       var btns = h('<div class="inline"></div>');
-      // Rundenzähler — direkt am Kampf, überlebt HP-Refreshes (persistiert).
-      var rnd = h('<div class="runde"></div>');
-      var rMinus = h('<button class="btn enc-btn" title="Runde zurück">−</button>');
-      var rVal = h('<span class="runde-val" title="aktuelle Runde">Runde ' + S.begegnungRunde() + '</span>');
-      var rPlus = h('<button class="btn enc-btn" title="nächste Runde">＋</button>');
-      rMinus.onclick = function () { S.begegnungRundeSet(S.begegnungRunde() - 1); rVal.textContent = "Runde " + S.begegnungRunde(); };
-      rPlus.onclick = function () { S.begegnungRundeSet(S.begegnungRunde() + 1); rVal.textContent = "Runde " + S.begegnungRunde(); };
-      rnd.appendChild(rMinus); rnd.appendChild(rVal); rnd.appendChild(rPlus);
-      btns.appendChild(rnd);
       var clear = h('<button class="btn btn-sm btn-danger">Leeren</button>');
       clear.onclick = function () { if (confirm("Begegnung leeren? (setzt auch die Runde zurück)")) { S.begegnungClear(); refreshBegegnung(); } };
       btns.appendChild(clear);
