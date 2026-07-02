@@ -46,6 +46,19 @@
   var BEGLEITER_KW_DEFAULT = { lk: 10, abwehr: 8, initiative: 6, schlagen: 8, schiessen: 0, laufen: 6 };
   function begleiterKw(c) { return Object.assign({}, BEGLEITER_KW_DEFAULT, c.kw); }
 
+  // Einheitliche Kampfwert-Zeile für die Gruppenkarten — dieselbe Auswahl und
+  // Reihenfolge für Helden UND Begleiter (sonst wirkt es willkürlich).
+  // Erwartet ein normalisiertes Objekt { lk, initiative, abwehr, schlagen, laufen }.
+  function kartenKampfwerte(kw) {
+    return '<div class="stats">' +
+      '<span>LK <b>' + kw.lk + '</b></span>' +
+      '<span>Ini <b>' + kw.initiative + '</b></span>' +
+      '<span>Abwehr <b>' + kw.abwehr + '</b></span>' +
+      '<span>Schl <b>' + kw.schlagen + '</b></span>' +
+      '<span>Lauf <b>' + kw.laufen + 'm</b></span>' +
+      '</div>';
+  }
+
   // ===========================================================================
   // ROSTER
   // ===========================================================================
@@ -89,30 +102,19 @@
           '<div class="card">' +
           '<div class="name">🐾 ' + esc(c.name) + '</div>' +
           '<div class="sub">Begleiter' + (c.vorlage ? ' · ' + esc(c.vorlage) : '') + '</div>' +
-          '<div class="stats">' +
-          '<span>LK <b>' + kw2.lk + '</b></span>' +
-          '<span>Abwehr <b>' + kw2.abwehr + '</b></span>' +
-          '<span>Ini <b>' + kw2.initiative + '</b></span>' +
-          '<span>Schl <b>' + kw2.schlagen + '</b></span>' +
-          '<span>Lauf <b>' + kw2.laufen + 'm</b></span>' +
-          '</div>' +
+          kartenKampfwerte(kw2) +
           '</div>');
         card.onclick = function () { openBegleiterEditor(c); };
       } else {
         var kw = E.kampfwerte(c);
         var sub = c.volk + " " + c.klasse + (c.unterklasse ? " · " + c.unterklasse : "") +
           (c.heldenklasse ? " · " + c.heldenklasse : "");
+        var normKw = { lk: kw.lebenskraft, initiative: kw.initiative, abwehr: kw.abwehr, schlagen: kw.schlagen, laufen: kw.laufen };
         card = h(
           '<div class="card">' +
           '<div class="name">' + esc(c.name) + '</div>' +
-          '<div class="sub">' + esc(sub) + '</div>' +
-          '<div class="stats">' +
-          '<span>Stufe <b>' + c.stufe + '</b></span>' +
-          '<span>EP <b>' + c.ep + '</b></span>' +
-          '<span>LK <b>' + kw.lebenskraft + '</b></span>' +
-          '<span>Ini <b>' + kw.initiative + '</b></span>' +
-          '<span>Abwehr <b>' + kw.abwehr + '</b></span>' +
-          '</div>' +
+          '<div class="sub">' + esc(sub) + ' · Stufe ' + c.stufe + ' · ' + c.ep + ' EP</div>' +
+          kartenKampfwerte(normKw) +
           '<div class="stats" style="margin-top:8px">' +
           (c.konten.lpOffen ? '<span class="pill good">' + c.konten.lpOffen + ' LP offen</span>' : '') +
           (c.konten.tpOffen ? '<span class="pill good">' + c.konten.tpOffen + ' TP offen</span>' : '') +
