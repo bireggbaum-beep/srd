@@ -1852,10 +1852,11 @@
     if (document.visibilityState === "visible" && wachhaltenAn() && !wakeSentinel) wakeAcquire();
   });
 
-  // ---- Orakel (SL-Hilfsmittel, PbtA-Stil) -----------------------------------
-  // Kein DS4-SRD-Inhalt, sondern ein generisches Ja/Nein-Orakel für spontane
-  // Fragen an die Spielwelt. 2W6 + Wahrscheinlichkeit (−2..+2). Jede Antwort
-  // kommt mit einem kurzen, sachlichen Deutungssatz.
+  // ---- Orakel (SL-Hilfsmittel, PbtA pur) ------------------------------------
+  // Kein DS4-SRD-Inhalt, sondern die klassische PbtA-Wurfmechanik als Ja/Nein-
+  // Orakel: 2W6 + Wahrscheinlichkeit (−2..+2). 6− Fehlschlag (Verschlechterung),
+  // 7–9 Teilerfolg (ja, aber), 10+ voller Erfolg (ja). Jede Antwort mit kurzem,
+  // sachlichem Deutungssatz.
   var ORAKEL_STUFEN = [
     { mod: -2, label: "Unwahrscheinlich" },
     { mod: -1, label: "Eher nicht" },
@@ -1864,12 +1865,9 @@
     { mod: 2, label: "Wahrscheinlich" }
   ];
   function orakelAntwort(total) {
-    if (total <= 2) return { ja: false, titel: "Nein, und …", text: "Nein — und es wird schlimmer: zusätzlich geht etwas schief oder eine neue Schwierigkeit taucht auf." };
-    if (total <= 4) return { ja: false, titel: "Nein", text: "Nein. Es läuft nicht so, wie gefragt." };
-    if (total <= 6) return { ja: false, titel: "Nein, aber …", text: "Nein — aber es gibt einen Lichtblick: etwas mildert das Nein oder eröffnet eine andere Chance." };
-    if (total <= 8) return { ja: true, titel: "Ja, aber …", text: "Ja — aber mit Haken: es klappt, bringt jedoch eine Komplikation oder einen Preis mit sich." };
-    if (total <= 11) return { ja: true, titel: "Ja", text: "Ja. Es passiert wie gefragt." };
-    return { ja: true, titel: "Ja, und …", text: "Ja — und sogar besser: zusätzlich spielt dir etwas in die Hände." };
+    if (total <= 6) return { stufe: "nein", tag: "Fehlschlag · 6−", titel: "Nein", text: "Fehlschlag — nein, und die Lage verschlechtert sich: etwas geht schief, ein Risiko wird real oder der SL macht einen harten Zug." };
+    if (total <= 9) return { stufe: "teil", tag: "Teilerfolg · 7–9", titel: "Ja, aber …", text: "Teilerfolg — ja, aber mit Preis: es klappt, bringt jedoch eine Komplikation, Kosten oder einen Haken mit." };
+    return { stufe: "ja", tag: "Voller Erfolg · 10+", titel: "Ja", text: "Voller Erfolg — ja, glatt und ohne Haken." };
   }
   function openOrakel() {
     var st = { mod: 0 };
@@ -1880,7 +1878,7 @@
     head.appendChild(close); modal.appendChild(head);
     var body = h('<div class="modal-body"></div>');
 
-    body.appendChild(h('<div class="help" style="margin-bottom:10px">SL-Hilfsmittel für spontane Ja/Nein-Fragen an die Spielwelt (kein DS4-Regelinhalt). Wähle, wie wahrscheinlich ein Ja ist, dann würfle 2W6.</div>'));
+    body.appendChild(h('<div class="help" style="margin-bottom:10px">SL-Hilfsmittel für spontane Ja/Nein-Fragen an die Spielwelt (kein DS4-Regelinhalt, PbtA-Mechanik). Schätze ein, wie wahrscheinlich ein Ja ist, dann würfle 2W6: 6− Fehlschlag · 7–9 Teilerfolg · 10+ Erfolg.</div>'));
 
     var stufen = h('<div class="chip-row orakel-stufen"></div>');
     ORAKEL_STUFEN.forEach(function (s) {
@@ -1907,7 +1905,8 @@
       var modTxt = st.mod === 0 ? "±0" : (st.mod > 0 ? "+" + st.mod : "" + st.mod);
       out.innerHTML = "";
       out.appendChild(h('<div class="orakel-dice">🎲 ' + d1 + '  ·  ' + d2 + '</div>'));
-      out.appendChild(h('<div class="orakel-titel ' + (a.ja ? "ja" : "nein") + '">' + a.titel + '</div>'));
+      out.appendChild(h('<div class="orakel-tag ' + a.stufe + '">' + a.tag + '</div>'));
+      out.appendChild(h('<div class="orakel-titel ' + a.stufe + '">' + a.titel + '</div>'));
       out.appendChild(h('<div class="orakel-text">' + esc(a.text) + '</div>'));
       out.appendChild(h('<div class="orakel-meta">2W6: ' + d1 + '+' + d2 + (st.mod ? " " + modTxt + " (" + esc(stufe.label) + ")" : "") + " = " + total + '</div>'));
       out.hidden = false;
