@@ -1865,9 +1865,18 @@
     { mod: 2, label: "Wahrscheinlich" }
   ];
   function orakelAntwort(total) {
-    if (total <= 6) return { stufe: "nein", tag: "Fehlschlag · 6−", titel: "Nein", text: "Fehlschlag — nein, und die Lage verschlechtert sich: etwas geht schief, ein Risiko wird real oder der SL macht einen harten Zug." };
-    if (total <= 9) return { stufe: "teil", tag: "Teilerfolg · 7–9", titel: "Ja, aber …", text: "Teilerfolg — ja, aber mit Preis: es klappt, bringt jedoch eine Komplikation, Kosten oder einen Haken mit." };
-    return { stufe: "ja", tag: "Voller Erfolg · 10+", titel: "Ja", text: "Voller Erfolg — ja, glatt und ohne Haken." };
+    if (total <= 6) return {
+      stufe: "nein", range: "6−", titel: "Fehlschlag / Nein",
+      text: "Nein — und es bleibt nicht folgenlos. Der SL macht einen Zug: eine Bedrohung tritt hervor, die Gegenseite handelt, oder es entstehen Kosten. Die Lage wird schwieriger, nicht einfach „nichts passiert“."
+    };
+    if (total <= 9) return {
+      stufe: "teil", range: "7–9", titel: "Teilerfolg / Ja, aber …",
+      text: "Ja, aber zu einem Preis. Es gelingt — doch setze einen Haken: es kostet etwas (Zeit, Ressourcen, eine gute Position), zieht eine Komplikation nach sich, oder klappt nur unsauber bzw. teilweise."
+    };
+    return {
+      stufe: "ja", range: "10+", titel: "Voller Erfolg / Ja",
+      text: "Ja, sauber und ohne Haken. Es gelingt wie erhofft, vielleicht sogar mit einem kleinen Extra-Vorteil. Die Szene darf vorangehen."
+    };
   }
   function openOrakel() {
     var st = { mod: 0 };
@@ -1905,7 +1914,7 @@
       var modTxt = st.mod === 0 ? "±0" : (st.mod > 0 ? "+" + st.mod : "" + st.mod);
       out.innerHTML = "";
       out.appendChild(h('<div class="orakel-dice">🎲 ' + d1 + '  ·  ' + d2 + '</div>'));
-      out.appendChild(h('<div class="orakel-tag ' + a.stufe + '">' + a.tag + '</div>'));
+      out.appendChild(h('<div class="orakel-tag ' + a.stufe + '">' + a.range + '</div>'));
       out.appendChild(h('<div class="orakel-titel ' + a.stufe + '">' + a.titel + '</div>'));
       out.appendChild(h('<div class="orakel-text">' + esc(a.text) + '</div>'));
       out.appendChild(h('<div class="orakel-meta">2W6: ' + d1 + '+' + d2 + (st.mod ? " " + modTxt + " (" + esc(stufe.label) + ")" : "") + " = " + total + '</div>'));
