@@ -1830,7 +1830,29 @@
     else renderRoster();
   }
 
-  // ---- Nav / Import --------------------------------------------------------
+  // ---- Bildschirm wach halten (Wake Lock) -----------------------------------
+  // Bewusst opt-in (Checkbox im Burgermenü), nicht automatisch an: die Seite
+  // soll stromsparsam bleiben, das dauerhafte Display-An kostet spürbar Akku
+  // und ist nur am Spieltisch gewünscht.
+  var WAKE_KEY = "ds4_wachhalten_v1";
+  var wakeSentinel = null;
+  function wachhaltenAn() { return localStorage.getItem(WAKE_KEY) === "1"; }
+  function wachhaltenSet(an) { localStorage.setItem(WAKE_KEY, an ? "1" : "0"); }
+  function wakeAcquire() {
+    if (!("wakeLock" in navigator)) return;
+    navigator.wakeLock.request("screen").then(function (s) {
+      wakeSentinel = s;
+      wakeSentinel.addEventListener("release", function () { wakeSentinel = null; });
+    }).catch(function () { /* z.B. Tab im Hintergrund -> greift beim nächsten visibilitychange erneut */ });
+  }
+  function wakeRelease() {
+    if (wakeSentinel) { wakeSentinel.release(); wakeSentinel = null; }
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible" && wachhaltenAn() && !wakeSentinel) wakeAcquire();
+  });
+
+  // ---- Nav / Import / Burgermenü --------------------------------------------
   function wireNav() {
     document.getElementById("nav-home").onclick = function () { go("roster"); };
     document.getElementById("nav-roster").onclick = function () { go("roster"); };
@@ -1853,6 +1875,32 @@
       };
       reader.readAsText(file);
     };
+
+    // Burgermenü — dezent, rechts im Header. Sammelstelle für seltener
+    // gebrauchte Funktionen (aktuell: Bildschirm wach halten).
+    var burgerBtn = document.getElementById("burger-btn");
+    var burgerMenu = document.getElementById("burger-menu");
+    function fillBurgerMenu() {
+      burgerMenu.innerHTML = "";
+      var wakeSupported = "wakeLock" in navigator;
+      var row = h('<label class="check-row"><input type="checkbox"' +
+        (wachhaltenAn() ? " checked" : "") + (wakeSupported ? "" : " disabled") + '/> Bildschirm wach halten</label>');
+      row.querySelector("input").onchange = function (ev) {
+        wachhaltenSet(ev.target.checked);
+        if (ev.target.checked) wakeAcquire(); else wakeRelease();
+        toast(ev.target.checked ? "Bildschirm bleibt während des Spiels an." : "Bildschirm kann wieder ausgehen.");
+      };
+      burgerMenu.appendChild(row);
+      if (!wakeSupported) burgerMenu.appendChild(h('<div class="menu-hint">Dein Browser unterstützt das leider nicht.</div>'));
+    }
+    burgerBtn.onclick = function (ev) {
+      ev.stopPropagation();
+      fillBurgerMenu();
+      burgerMenu.hidden = !burgerMenu.hidden;
+      if (!burgerMenu.hidden) setTimeout(function () { document.addEventListener("click", function cl() { burgerMenu.hidden = true; document.removeEventListener("click", cl); }); }, 0);
+    };
+
+    if (wachhaltenAn()) wakeAcquire(); // beim Start fortsetzen, falls zuletzt aktiviert
   }
 
   // ---- Init ----------------------------------------------------------------

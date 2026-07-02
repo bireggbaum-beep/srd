@@ -108,6 +108,14 @@ td.num, th.num { text-align: right; }
 .menu button { display: block; width: 100%; text-align: left; background: none; border: none; color: var(--ink); padding: 10px 12px; cursor: pointer; font-size: 14px; border-radius: 7px; }
 .menu button:hover { background: var(--panel); }
 .menu button.danger { color: var(--bad); }
+.menu label.check-row { display: flex; align-items: center; gap: 8px; padding: 10px 12px; cursor: pointer; border-radius: 7px; font-size: 14px; }
+.menu label.check-row:hover { background: var(--panel); }
+.menu label.check-row input { margin: 0; }
+.menu .menu-hint { padding: 2px 12px 8px; font-size: 11px; color: var(--muted); max-width: 220px; }
+
+/* ---- dezenter Header-Button (Burgermenü) ---- */
+.btn-burger { background: none; border: 1px solid transparent; color: var(--muted); padding: 8px 10px; font-size: 16px; line-height: 1; }
+.btn-burger:hover { color: var(--ink); border-color: var(--line); }
 
 /* ---- Tabs ---- */
 .tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--line); margin: 16px 0; flex-wrap: wrap; }
