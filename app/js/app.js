@@ -1852,6 +1852,79 @@
     if (document.visibilityState === "visible" && wachhaltenAn() && !wakeSentinel) wakeAcquire();
   });
 
+  // ---- Orakel (SL-Hilfsmittel, PbtA-Stil) -----------------------------------
+  // Kein DS4-SRD-Inhalt, sondern ein generisches Ja/Nein-Orakel für spontane
+  // Fragen an die Spielwelt. 2W6 + Wahrscheinlichkeit (−2..+2). Jede Antwort
+  // kommt mit einem kurzen, sachlichen Deutungssatz.
+  var ORAKEL_STUFEN = [
+    { mod: -2, label: "Unwahrscheinlich" },
+    { mod: -1, label: "Eher nicht" },
+    { mod: 0, label: "50 / 50" },
+    { mod: 1, label: "Eher schon" },
+    { mod: 2, label: "Wahrscheinlich" }
+  ];
+  function orakelAntwort(total) {
+    if (total <= 2) return { ja: false, titel: "Nein, und …", text: "Nein — und es wird schlimmer: zusätzlich geht etwas schief oder eine neue Schwierigkeit taucht auf." };
+    if (total <= 4) return { ja: false, titel: "Nein", text: "Nein. Es läuft nicht so, wie gefragt." };
+    if (total <= 6) return { ja: false, titel: "Nein, aber …", text: "Nein — aber es gibt einen Lichtblick: etwas mildert das Nein oder eröffnet eine andere Chance." };
+    if (total <= 8) return { ja: true, titel: "Ja, aber …", text: "Ja — aber mit Haken: es klappt, bringt jedoch eine Komplikation oder einen Preis mit sich." };
+    if (total <= 11) return { ja: true, titel: "Ja", text: "Ja. Es passiert wie gefragt." };
+    return { ja: true, titel: "Ja, und …", text: "Ja — und sogar besser: zusätzlich spielt dir etwas in die Hände." };
+  }
+  function openOrakel() {
+    var st = { mod: 0 };
+    var overlay = h('<div class="overlay"></div>');
+    var modal = h('<div class="modal" style="max-width:460px"></div>');
+    var head = h('<div class="modal-head"><h2>🔮 Orakel</h2></div>');
+    var close = h('<button class="btn btn-sm no-print">Schließen ✕</button>'); close.onclick = closeOrakel;
+    head.appendChild(close); modal.appendChild(head);
+    var body = h('<div class="modal-body"></div>');
+
+    body.appendChild(h('<div class="help" style="margin-bottom:10px">SL-Hilfsmittel für spontane Ja/Nein-Fragen an die Spielwelt (kein DS4-Regelinhalt). Wähle, wie wahrscheinlich ein Ja ist, dann würfle 2W6.</div>'));
+
+    var stufen = h('<div class="chip-row orakel-stufen"></div>');
+    ORAKEL_STUFEN.forEach(function (s) {
+      var chip = h('<span class="chip' + (st.mod === s.mod ? " active" : "") + '">' + s.label + '</span>');
+      chip.onclick = function () {
+        st.mod = s.mod;
+        stufen.querySelectorAll(".chip").forEach(function (c) { c.classList.remove("active"); });
+        chip.classList.add("active");
+      };
+      stufen.appendChild(chip);
+    });
+    body.appendChild(stufen);
+
+    var wuerfeln = h('<button class="btn btn-primary" style="width:100%;margin-top:12px">🎲 2W6 werfen</button>');
+    body.appendChild(wuerfeln);
+    var out = h('<div class="orakel-result" hidden></div>');
+    body.appendChild(out);
+
+    wuerfeln.onclick = function () {
+      var d1 = 1 + Math.floor(Math.random() * 6), d2 = 1 + Math.floor(Math.random() * 6);
+      var total = d1 + d2 + st.mod;
+      var a = orakelAntwort(total);
+      var stufe = ORAKEL_STUFEN.filter(function (s) { return s.mod === st.mod; })[0];
+      var modTxt = st.mod === 0 ? "±0" : (st.mod > 0 ? "+" + st.mod : "" + st.mod);
+      out.innerHTML = "";
+      out.appendChild(h('<div class="orakel-dice">🎲 ' + d1 + '  ·  ' + d2 + '</div>'));
+      out.appendChild(h('<div class="orakel-titel ' + (a.ja ? "ja" : "nein") + '">' + a.titel + '</div>'));
+      out.appendChild(h('<div class="orakel-text">' + esc(a.text) + '</div>'));
+      out.appendChild(h('<div class="orakel-meta">2W6: ' + d1 + '+' + d2 + (st.mod ? " " + modTxt + " (" + esc(stufe.label) + ")" : "") + " = " + total + '</div>'));
+      out.hidden = false;
+    };
+
+    modal.appendChild(body); overlay.appendChild(modal);
+    overlay.addEventListener("click", function (ev) { if (ev.target === overlay) closeOrakel(); });
+    document.addEventListener("keydown", escCloseOrakel);
+    document.body.appendChild(overlay); overlay.id = "orakel-overlay";
+  }
+  function escCloseOrakel(ev) { if (ev.key === "Escape") closeOrakel(); }
+  function closeOrakel() {
+    var o = document.getElementById("orakel-overlay");
+    if (o) o.remove();
+    document.removeEventListener("keydown", escCloseOrakel);
+  }
+
   // ---- Nav / Import / Burgermenü --------------------------------------------
   function wireNav() {
     document.getElementById("nav-home").onclick = function () { go("roster"); };
@@ -1882,6 +1955,9 @@
     var burgerMenu = document.getElementById("burger-menu");
     function fillBurgerMenu() {
       burgerMenu.innerHTML = "";
+      var orakelBtn = h('<button>🔮 Orakel</button>');
+      orakelBtn.onclick = function () { burgerMenu.hidden = true; openOrakel(); };
+      burgerMenu.appendChild(orakelBtn);
       var wakeSupported = "wakeLock" in navigator;
       var row = h('<label class="check-row"><input type="checkbox"' +
         (wachhaltenAn() ? " checked" : "") + (wakeSupported ? "" : " disabled") + '/> Bildschirm wach halten</label>');
