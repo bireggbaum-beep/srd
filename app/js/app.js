@@ -1826,6 +1826,7 @@
     else if (state.view === "generator") renderGenerator();
     else if (state.view === "monster") renderMonster();
     else if (state.view === "begegnung") renderBegegnung();
+    else if (state.view === "keys") renderKeys();
     else if (state.view === "sheet") renderSheet();
     else renderRoster();
   }
@@ -1933,6 +1934,209 @@
     document.removeEventListener("keydown", escCloseOrakel);
   }
 
+  // ---- Keys ziehen (SL-Hilfsmittel, eigene Seite) ---------------------------
+  // Generische Fund-/Hinweis-Bausteine. Rein gewichtetes Ziehen (kein Würfeln):
+  //   Gewicht = themes[T]^(1/τ) · Anti-Repeat-Multiplikator pro Form.
+  // Zustand (aktuelle Ziehung + Notizen) in localStorage, Reload-fest.
+  var KEYS_DRAW_KEY = "ds4_keys_draw_v1";
+  var KEYS_THEMEN = [["dungeon", "Dungeon"], ["city", "Stadt"], ["wilderness", "Wildnis"], ["court", "Hof"], ["", "kein Thema"]];
+  var KEYS_FORM_LABEL = { object: "Gegenstand", person: "Person", trace: "Spur", utterance: "Info", condition: "Zustand" };
+  var KEYS_TONE_LABEL = { profane: "schlicht", uncanny: "unheimlich", tragic: "tragisch", grotesque: "grotesk", hopeful: "hoffnungsvoll" };
+  var keysState = { theme: "dungeon", tau: 1.0, n: 5 };
+  function keysAll() { return (typeof global.DS_KEYS !== "undefined" && global.DS_KEYS) || []; }
+  function keysById(id) { return keysAll().filter(function (k) { return k.id === id; })[0] || null; }
+
+  function keysDrawLoad() {
+    try { return JSON.parse(localStorage.getItem(KEYS_DRAW_KEY)) || []; } catch (e) { return []; }
+  }
+  function keysDrawSave(list) { localStorage.setItem(KEYS_DRAW_KEY, JSON.stringify(list)); }
+
+  function keyGewicht(key, opts, formMult) {
+    var tw = 1.0;
+    if (opts.theme) tw = (key.themes && key.themes[opts.theme] != null) ? key.themes[opts.theme] : 1.0;
+    var adj = Math.pow(tw, 1 / opts.tau);
+    return adj * (formMult[key.form] || 1);
+  }
+  function keyZiehEinen(avail, opts, formMult) {
+    if (!avail.length) return null;
+    var w = avail.map(function (k) { return keyGewicht(k, opts, formMult); });
+    var sum = w.reduce(function (a, b) { return a + b; }, 0);
+    if (sum <= 0) return avail[Math.floor(Math.random() * avail.length)];
+    var r = Math.random() * sum, acc = 0;
+    for (var i = 0; i < avail.length; i++) { acc += w[i]; if (r <= acc) return avail[i]; }
+    return avail[avail.length - 1];
+  }
+  // Multiplikator-Tabelle aus bereits gezogenen Formen aufbauen (Anti-Repeat).
+  function keysFormMult(gezogenIds) {
+    var PENALTY = 0.5, mult = {};
+    gezogenIds.forEach(function (id) {
+      var k = keysById(id); if (!k) return;
+      mult[k.form] = (mult[k.form] || 1) * PENALTY;
+    });
+    return mult;
+  }
+  // Zieht n Keys ohne Zurücklegen (ausgenommen bereits gezogene IDs).
+  function keysZiehen(n, opts, exkludiereIds) {
+    var draw = [];
+    var avail = keysAll().filter(function (k) { return exkludiereIds.indexOf(k.id) < 0; });
+    var mult = keysFormMult(exkludiereIds);
+    for (var i = 0; i < n && avail.length; i++) {
+      var one = keyZiehEinen(avail, opts, mult);
+      if (!one) break;
+      draw.push(one.id);
+      avail = avail.filter(function (x) { return x.id !== one.id; });
+      mult[one.form] = (mult[one.form] || 1) * 0.5;
+    }
+    return draw;
+  }
+
+  function renderKeys() {
+    var wrap = h('<div></div>');
+    var head = h('<div class="inline" style="justify-content:space-between;width:100%;margin-bottom:4px"></div>');
+    head.appendChild(h('<h2 style="margin:0">🗝 Keys</h2>'));
+    wrap.appendChild(head);
+    wrap.appendChild(h('<div class="help" style="margin-bottom:14px">SL-Hilfsmittel (kein DS4-Regelinhalt): generische Fund- & Hinweis-Bausteine. Am Session-Beginn ein paar ziehen und im Verlauf als Funde platzieren — Bedeutung entsteht am Tisch.</div>'));
+
+    // --- Steuerung ---
+    var panel = h('<div class="panel"></div>');
+    panel.appendChild(h('<h3 style="margin-top:0">Ziehen</h3>'));
+
+    var themeRow = h('<div class="chip-row"></div>');
+    KEYS_THEMEN.forEach(function (t) {
+      var chip = h('<span class="chip' + (keysState.theme === t[0] ? " active" : "") + '">' + t[1] + '</span>');
+      chip.onclick = function () { keysState.theme = t[0]; themeRow.querySelectorAll(".chip").forEach(function (c) { c.classList.remove("active"); }); chip.classList.add("active"); };
+      themeRow.appendChild(chip);
+    });
+    panel.appendChild(h('<label style="display:block;margin-bottom:4px">Thema</label>'));
+    panel.appendChild(themeRow);
+
+    var ctl = h('<div class="inline" style="gap:18px;flex-wrap:wrap;margin-top:12px;align-items:flex-end"></div>');
+    // Härte τ
+    var tauWrap = h('<div></div>');
+    var tauLabel = h('<label style="display:block;margin-bottom:4px">Härte <span class="muted" id="key-tau-val">τ ' + keysState.tau.toFixed(1) + '</span></label>');
+    var tau = h('<input type="range" min="0.3" max="3" step="0.1" value="' + keysState.tau + '" style="width:180px" />');
+    tau.oninput = function () { keysState.tau = parseFloat(tau.value); tauLabel.querySelector("#key-tau-val").textContent = "τ " + keysState.tau.toFixed(1); };
+    tauWrap.appendChild(tauLabel); tauWrap.appendChild(tau);
+    tauWrap.appendChild(h('<div class="muted" style="font-size:11px;margin-top:2px">streng thematisch ⟵⟶ zufällig</div>'));
+    ctl.appendChild(tauWrap);
+    // Anzahl
+    var nWrap = h('<div></div>');
+    nWrap.appendChild(h('<label style="display:block;margin-bottom:4px">Anzahl</label>'));
+    var nIn = h('<input type="number" min="1" max="' + keysAll().length + '" value="' + keysState.n + '" style="width:70px" />');
+    nWrap.appendChild(nIn);
+    ctl.appendChild(nWrap);
+    // Ziehen
+    var drawBtn = h('<button class="btn btn-primary">🗝 Ziehen</button>');
+    drawBtn.onclick = function () {
+      var n = Math.max(1, Math.min(keysAll().length, parseInt(nIn.value, 10) || 5));
+      keysState.n = n;
+      var ids = keysZiehen(n, keysState, []);
+      keysDrawSave(ids.map(function (id) { return { id: id, note: "" }; }));
+      renderKeysDraw(drawArea);
+    };
+    ctl.appendChild(drawBtn);
+    panel.appendChild(ctl);
+    wrap.appendChild(panel);
+
+    // --- aktuelle Ziehung ---
+    var drawArea = h('<div></div>');
+    wrap.appendChild(drawArea);
+    renderKeysDraw(drawArea);
+
+    // --- Durchsuchen ---
+    wrap.appendChild(renderKeysBrowse());
+
+    app.appendChild(wrap);
+  }
+
+  function keyCard(entry, opts) {
+    // entry = { id, note }; opts.onReroll, opts.onRemove (optional)
+    var k = keysById(entry.id);
+    if (!k) return h('<div></div>');
+    var card = h('<div class="key-card"></div>');
+    var top = h('<div class="inline" style="justify-content:space-between;align-items:flex-start;gap:8px"></div>');
+    top.appendChild(h('<div class="key-text">' + esc(k.text) + '</div>'));
+    if (opts && opts.onReroll) {
+      var rr = h('<button class="btn btn-sm btn-subtle" title="diese Karte neu ziehen">🎲</button>');
+      rr.onclick = function () { opts.onReroll(entry.id); };
+      top.appendChild(rr);
+    }
+    card.appendChild(top);
+    card.appendChild(h('<div class="key-meta">' + (KEYS_FORM_LABEL[k.form] || k.form) +
+      (k.tone && k.tone !== "profane" ? ' · ' + (KEYS_TONE_LABEL[k.tone] || k.tone) : '') + '</div>'));
+    if (opts && opts.withNote) {
+      var note = h('<textarea class="key-note" rows="1" placeholder="Notiz (wo/als was platziert)…">' + esc(entry.note || "") + '</textarea>');
+      note.onchange = function () {
+        var list = keysDrawLoad();
+        var e = list.filter(function (x) { return x.id === entry.id; })[0];
+        if (e) { e.note = note.value; keysDrawSave(list); }
+      };
+      card.appendChild(note);
+    }
+    return card;
+  }
+
+  function renderKeysDraw(container) {
+    container.innerHTML = "";
+    var list = keysDrawLoad();
+    if (!list.length) return;
+    var head = h('<div class="inline" style="justify-content:space-between;width:100%;margin:18px 0 8px"></div>');
+    head.appendChild(h('<h3 style="margin:0">Gezogen <span class="muted">(' + list.length + ')</span></h3>'));
+    var btns = h('<div class="inline"></div>');
+    var more = h('<button class="btn btn-sm">+ Nachziehen</button>');
+    more.onclick = function () {
+      var cur = keysDrawLoad();
+      var have = cur.map(function (x) { return x.id; });
+      if (have.length >= keysAll().length) { toast("Alle Keys gezogen."); return; }
+      var neu = keysZiehen(1, keysState, have);
+      if (neu.length) { cur.push({ id: neu[0], note: "" }); keysDrawSave(cur); renderKeysDraw(container); }
+    };
+    var clr = h('<button class="btn btn-sm btn-danger">Leeren</button>');
+    clr.onclick = function () { keysDrawSave([]); renderKeysDraw(container); };
+    btns.appendChild(more); btns.appendChild(clr);
+    head.appendChild(btns);
+    container.appendChild(head);
+
+    var grid = h('<div class="key-grid"></div>');
+    list.forEach(function (entry) {
+      grid.appendChild(keyCard(entry, {
+        withNote: true,
+        onReroll: function (id) {
+          var cur = keysDrawLoad();
+          var have = cur.map(function (x) { return x.id; });
+          var neu = keysZiehen(1, keysState, have); // aus dem Rest, ohne die aktuell gezogenen
+          if (!neu.length) { toast("Keine weiteren Keys verfügbar."); return; }
+          cur = cur.map(function (x) { return x.id === id ? { id: neu[0], note: "" } : x; });
+          keysDrawSave(cur); renderKeysDraw(container);
+        }
+      }));
+    });
+    container.appendChild(grid);
+  }
+
+  function renderKeysBrowse() {
+    var panel = h('<div class="panel" style="margin-top:18px"></div>');
+    panel.appendChild(h('<h3 style="margin-top:0">Alle Keys durchsuchen <span class="muted" style="font-weight:400;font-size:13px">· ' + keysAll().length + '</span></h3>'));
+    var suche = h('<input type="text" placeholder="🔎 Suche im Text…" style="max-width:320px;margin-bottom:10px" />');
+    panel.appendChild(suche);
+    var liste = h('<div class="key-browse"></div>');
+    function fill() {
+      liste.innerHTML = "";
+      var q = suche.value.trim().toLowerCase();
+      keysAll().filter(function (k) { return !q || k.text.toLowerCase().indexOf(q) >= 0; }).forEach(function (k) {
+        var row = h('<div class="key-browse-row"></div>');
+        row.appendChild(h('<span class="key-browse-text">' + esc(k.text) + '</span>'));
+        row.appendChild(h('<span class="key-meta">' + (KEYS_FORM_LABEL[k.form] || k.form) + '</span>'));
+        liste.appendChild(row);
+      });
+      if (!liste.children.length) liste.appendChild(h('<div class="muted" style="font-size:13px">Keine Treffer.</div>'));
+    }
+    suche.addEventListener("input", fill);
+    fill();
+    panel.appendChild(liste);
+    return panel;
+  }
+
   // ---- Nav / Import / Burgermenü --------------------------------------------
   function wireNav() {
     document.getElementById("nav-home").onclick = function () { go("roster"); };
@@ -1966,6 +2170,9 @@
       var orakelBtn = h('<button>🔮 Orakel</button>');
       orakelBtn.onclick = function () { burgerMenu.hidden = true; openOrakel(); };
       burgerMenu.appendChild(orakelBtn);
+      var keysBtn = h('<button>🗝 Keys ziehen</button>');
+      keysBtn.onclick = function () { burgerMenu.hidden = true; go("keys"); };
+      burgerMenu.appendChild(keysBtn);
       var wakeSupported = "wakeLock" in navigator;
       var row = h('<label class="check-row"><input type="checkbox"' +
         (wachhaltenAn() ? " checked" : "") + (wakeSupported ? "" : " disabled") + '/> Bildschirm wach halten</label>');
