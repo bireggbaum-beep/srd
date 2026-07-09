@@ -72,7 +72,10 @@
     var head = h('<div class="inline" style="justify-content:space-between;margin-bottom:16px;width:100%"></div>');
     head.appendChild(h('<h2 style="margin:0">Gruppe <span class="muted">(' + roster.length + ')</span></h2>'));
     var actions = h('<div class="inline"></div>');
-    // "+ Neuer Charakter" steht bereits prominent in der Topnav -> hier nur Zufall + Begleiter + Export
+    // "+ Neuer Charakter" lebt auf der Seite selbst (nicht global im Header).
+    var btnNew = h('<button class="btn btn-primary">+ Neuer Charakter</button>');
+    btnNew.onclick = function () { startCreate(); };
+    actions.appendChild(btnNew);
     var btnGen = h('<button class="btn">🎲 Zufallscharakter</button>');
     btnGen.onclick = function () { go("generator"); };
     actions.appendChild(btnGen);
@@ -1391,6 +1394,9 @@
     };
     heldWrap.appendChild(heldBtn); heldWrap.appendChild(heldMenu);
     addWrap.appendChild(heldWrap);
+    var newChar = h('<button class="btn">+ Neuer Charakter</button>');
+    newChar.onclick = function () { startCreate(); };
+    addWrap.appendChild(newChar);
     head.appendChild(addWrap);
     wrap.appendChild(head);
     wrap.appendChild(begegnungPanel(false));
@@ -1825,10 +1831,6 @@
   // ===========================================================================
   function render() {
     app.innerHTML = "";
-    // "+ Neuer Charakter" nur dort zeigen, wo es hingehört (Gruppe & Begegnung),
-    // nicht global im Header über allen Ansichten.
-    var navCreate = document.getElementById("nav-create");
-    if (navCreate) navCreate.style.display = (state.view === "roster" || state.view === "begegnung") ? "" : "none";
     if (state.view === "create") renderCreate();
     else if (state.view === "generator") renderGenerator();
     else if (state.view === "monster") renderMonster();
@@ -2150,7 +2152,6 @@
     document.getElementById("nav-roster").onclick = function () { go("roster"); };
     document.getElementById("nav-monster").onclick = function () { go("monster"); };
     document.getElementById("nav-begegnung").onclick = function () { go("begegnung"); };
-    document.getElementById("nav-create").onclick = function () { startCreate(); };
     var fileInput = document.getElementById("import-file");
     document.getElementById("nav-import").onclick = function () { fileInput.click(); };
     fileInput.onchange = function () {
