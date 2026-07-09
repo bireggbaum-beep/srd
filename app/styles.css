@@ -132,6 +132,17 @@ td.num, th.num { text-align: right; }
 .orakel-text { margin-top: 6px; font-size: 14px; line-height: 1.5; }
 .orakel-meta { margin-top: 10px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 
+/* ---- Keys ---- */
+.key-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.key-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 8px; }
+.key-text { font-size: 15px; line-height: 1.4; }
+.key-meta { font-size: 11px; letter-spacing: .4px; text-transform: uppercase; color: var(--muted); }
+.key-note { width: 100%; resize: vertical; min-height: 34px; font-size: 13px; }
+.key-browse { display: flex; flex-direction: column; }
+.key-browse-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 7px 2px; border-bottom: 1px solid var(--line); }
+.key-browse-row:last-child { border-bottom: none; }
+.key-browse-text { font-size: 14px; }
+
 /* ---- Tabs ---- */
 .tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--line); margin: 16px 0; flex-wrap: wrap; }
 .tab { background: none; border: none; color: var(--muted); padding: 8px 12px; cursor: pointer; border-bottom: 2px solid transparent; font-size: 14px; }
