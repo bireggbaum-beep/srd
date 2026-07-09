@@ -223,7 +223,9 @@ hr.sep { border: none; border-top: 1px solid var(--line); margin: 16px 0; }
 .enc-inst.swiping { transition: none; user-select: none; }
 .enc-inst:not(.swiping) { transition: transform .18s ease; }
 .enc-inst.held { border-left: 3px solid var(--blue); padding-left: 8px; margin-left: -8px; }
-.enc-inst.tot { opacity: .5; }
+/* Besiegte Zeile abgedunkelt — aber NICHT die Beute-Sektion, sonst sieht die
+   Wurf-Eingabe wie deaktiviert aus, obwohl sie aktiv ist. */
+.enc-inst.tot > *:not(.enc-loot) { opacity: .5; }
 .enc-inst.tot .en a { text-decoration: line-through; }
 .enc-line1 { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .enc-line1 .en { flex: 1; min-width: 120px; font-weight: 600; font-size: 15px; }
@@ -254,6 +256,7 @@ hr.sep { border: none; border-top: 1px solid var(--line); margin: 16px 0; }
 .statblock .sb { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; font-size: 13px; display: flex; justify-content: space-between; }
 .statblock .sb b { color: var(--accent-2); }
 .faeh-name { color: var(--accent); }
+.sb-list { font-size: 14px; line-height: 1.5; }
 .beute-erg { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-top: 8px; font-size: 14px; }
 .beute-erg > div { padding: 1px 0; }
 .enc-loot { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
