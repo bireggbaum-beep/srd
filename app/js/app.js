@@ -28,6 +28,9 @@
   // ---- kleine Helfer -------------------------------------------------------
   function h(html) { var t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstChild; }
   function esc(s) { return (s == null ? "" : String(s)).replace(/[&<>"]/g, function (c) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]; }); }
+  // Markdown-Links [Text](pfad) auf den reinen Text reduzieren (die SRD-Daten
+  // enthalten Verweise auf .md-Dateien, die wir hier nur als Text zeigen).
+  function mdText(s) { return (s == null ? "" : String(s)).replace(/\[([^\]]+)\]\([^)]*\)/g, "$1"); }
   function eigName(id) { var x = EIG.filter(function (e) { return e.id === id; })[0]; return x ? x.name : id; }
   function eigKurz(id) { var x = EIG.filter(function (e) { return e.id === id; })[0]; return x ? x.kurz : id; }
 
@@ -1715,11 +1718,11 @@
       sb("Laufen", m.kw.laufen != null ? m.kw.laufen + " m" : null) + sb("Schlagen", m.kw.schlagen) + sb("Schießen", m.kw.schiessen) +
       sb("GH", m.gh) + sb("EP", m.ep) + '</div>';
     var body = '<div class="sheet-section">' + grid + kw;
-    if (m.bewaffnung.length) body += '<h3 style="margin-top:14px">Bewaffnung</h3><div>' + m.bewaffnung.map(function (w) { return '<span class="pill">' + esc(w) + '</span>'; }).join("") + '</div>';
-    if (m.panzerung.length) body += '<h3>Panzerung</h3><div>' + m.panzerung.map(function (p) { return '<span class="pill">' + esc(p) + '</span>'; }).join("") + '</div>';
+    if (m.bewaffnung.length) body += '<h3 style="margin-top:14px">Bewaffnung</h3><div class="sb-list">' + m.bewaffnung.map(function (w) { return esc(mdText(w)); }).join("<br>") + '</div>';
+    if (m.panzerung.length) body += '<h3>Panzerung</h3><div class="sb-list">' + m.panzerung.map(function (p) { return esc(mdText(p)); }).join("<br>") + '</div>';
     if (m.faehigkeiten.length) {
       body += '<h3>Fähigkeiten</h3>';
-      m.faehigkeiten.forEach(function (f) { body += '<div style="margin-bottom:8px"><b class="faeh-name">' + esc(f.name) + ':</b> ' + esc(f.text) + '</div>'; });
+      m.faehigkeiten.forEach(function (f) { body += '<div style="margin-bottom:8px"><b class="faeh-name">' + esc(f.name) + ':</b> ' + esc(mdText(f.text)) + '</div>'; });
     }
     body += '</div>';
     modal.appendChild(h('<div class="modal-body">' + body + '</div>'));
@@ -1822,6 +1825,10 @@
   // ===========================================================================
   function render() {
     app.innerHTML = "";
+    // "+ Neuer Charakter" nur dort zeigen, wo es hingehört (Gruppe & Begegnung),
+    // nicht global im Header über allen Ansichten.
+    var navCreate = document.getElementById("nav-create");
+    if (navCreate) navCreate.style.display = (state.view === "roster" || state.view === "begegnung") ? "" : "none";
     if (state.view === "create") renderCreate();
     else if (state.view === "generator") renderGenerator();
     else if (state.view === "monster") renderMonster();
