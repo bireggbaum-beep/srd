@@ -1587,11 +1587,11 @@
         inst.appendChild(lootSection);
       }
 
-      // Swipe: nach links = entfernen, nach rechts = wiederbeleben (nur wenn tot).
+      // Swipe (Telegram-Stil): nach links = entfernen, nach rechts = wiederbeleben.
       var row = h('<div class="enc-row"></div>');
       var actions = h('<div class="enc-actions">' +
-        '<div class="act act-revive">↺ Wiederbeleben</div>' +
-        '<div class="act act-remove">Entfernen ✕</div></div>');
+        '<div class="act-ind left revive"><span class="act-ic">↺</span></div>' +
+        '<div class="act-ind right remove"><span class="act-ic">✕</span></div></div>');
       row.appendChild(actions);
       row.appendChild(inst);
       makeSwipeable(inst, {
@@ -1602,18 +1602,29 @@
     });
   }
 
-  // Pointer-basiertes Swipe (Maus + Touch) auf einer Zeile: über den Schwellwert
-  // hinaus nach links/rechts ziehen löst die jeweilige Aktion aus, sonst zurück.
+  // Pointer-basiertes Swipe im Telegram-Stil: die Zeile folgt dem Finger, jenseits
+  // der Schwelle mit elastischem Widerstand; ein Icon am Rand wächst mit und
+  // „rastet" beim Schwellwert ein (kurzes Haptik-Feedback). Über der Schwelle
+  // losgelassen = Aktion, sonst federt es zurück.
   function makeSwipeable(el, opts) {
-    var startX = 0, startY = 0, dx = 0, active = false, decided = false, horiz = false;
-    var TH = 90; // Auslöse-Schwelle in px
-    function isInteractive(t) { return t.closest && t.closest("button, input, select, a, .loot-out"); }
+    var startX = 0, startY = 0, dx = 0, active = false, decided = false, horiz = false, armed = false;
+    var TH = 72; // Auslöse-Schwelle in px
+    var row = el.parentNode;
+    var indLeft = row.querySelector(".act-ind.left");   // erscheint beim Wischen nach rechts (Wiederbeleben)
+    var indRight = row.querySelector(".act-ind.right");  // erscheint beim Wischen nach links (Entfernen)
+    function isInteractive(t) { return t.closest && t.closest("button, input, select, a, .loot-out, textarea"); }
+    function elastic(d) { var a = Math.abs(d); var s = a <= TH ? a : TH + (a - TH) * 0.3; return (d < 0 ? -1 : 1) * s; }
+    function reset() {
+      el.style.transition = "transform .22s cubic-bezier(.22,1,.36,1)";
+      el.style.transform = "";
+      [indLeft, indRight].forEach(function (i) { if (!i) return; i.style.opacity = 0; i.classList.remove("armed"); i.querySelector(".act-ic").style.transform = "scale(.5)"; });
+    }
     el.addEventListener("pointerdown", function (ev) {
       if (ev.pointerType === "mouse" && ev.button !== 0) return;
       if (isInteractive(ev.target)) return;
-      active = true; decided = false; horiz = false; dx = 0;
+      active = true; decided = false; horiz = false; armed = false; dx = 0;
       startX = ev.clientX; startY = ev.clientY;
-      el.classList.add("swiping");
+      el.style.transition = "none";
     });
     el.addEventListener("pointermove", function (ev) {
       if (!active) return;
@@ -1626,25 +1637,36 @@
       }
       if (!horiz) return;
       ev.preventDefault();
-      if (dx > 0 && !opts.onRight) dx = Math.min(dx, 24); // rechts nur andeuten, wenn deaktiviert
-      if (dx < 0 && !opts.onLeft) dx = Math.max(dx, -24);
-      el.style.transform = "translateX(" + dx + "px)";
-      el.parentNode.classList.toggle("reveal-left", dx > 12);
-      el.parentNode.classList.toggle("reveal-right", dx < -12);
+      var dir = dx > 0 ? 1 : -1;
+      var avail = dir > 0 ? opts.onRight : opts.onLeft;
+      if (!avail) { // in diese Richtung nichts -> harter Widerstand, nur andeuten
+        el.style.transform = "translateX(" + (dir * Math.min(Math.abs(dx), 16)) + "px)";
+        if (indLeft) { indLeft.style.opacity = 0; indLeft.classList.remove("armed"); }
+        if (indRight) { indRight.style.opacity = 0; indRight.classList.remove("armed"); }
+        armed = false; return;
+      }
+      el.style.transform = "translateX(" + elastic(dx) + "px)";
+      var prog = Math.min(1, Math.abs(dx) / TH);
+      var ind = dir > 0 ? indLeft : indRight;
+      var other = dir > 0 ? indRight : indLeft;
+      if (other) { other.style.opacity = 0; other.classList.remove("armed"); }
+      if (ind) {
+        ind.style.opacity = Math.max(0, prog - 0.05);
+        ind.querySelector(".act-ic").style.transform = "scale(" + (0.5 + 0.55 * prog) + ")";
+        var nowArmed = Math.abs(dx) >= TH;
+        if (nowArmed !== armed) { ind.classList.toggle("armed", nowArmed); if (nowArmed && navigator.vibrate) navigator.vibrate(12); }
+        armed = nowArmed;
+      }
     });
     function end() {
       if (!active) return;
       active = false;
-      el.classList.remove("swiping");
-      var triggered = false;
-      if (horiz) {
-        if (dx <= -TH && opts.onLeft) { triggered = true; el.style.transform = "translateX(-110%)"; opts.onLeft(); }
-        else if (dx >= TH && opts.onRight) { triggered = true; el.style.transform = "translateX(110%)"; opts.onRight(); }
+      if (horiz && armed) {
+        var dir = dx > 0 ? 1 : -1;
+        if (dir > 0 && opts.onRight) { opts.onRight(); return; }
+        if (dir < 0 && opts.onLeft) { opts.onLeft(); return; }
       }
-      if (!triggered) {
-        el.style.transform = "";
-        el.parentNode.classList.remove("reveal-left", "reveal-right");
-      }
+      reset();
     }
     el.addEventListener("pointerup", end);
     el.addEventListener("pointercancel", end);
