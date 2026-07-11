@@ -214,14 +214,18 @@ hr.sep { border: none; border-top: 1px solid var(--line); margin: 16px 0; }
 .encounter { position: sticky; top: 56px; z-index: 10; max-height: 55vh; overflow-y: auto; }
 .encounter-full { } /* eigener Tab: volle Höhe, kein sticky */
 .enc-row { position: relative; overflow: hidden; }
-.enc-actions { position: absolute; inset: 0; display: flex; justify-content: space-between; align-items: stretch; opacity: 0; transition: opacity .12s; }
-.enc-row.reveal-left .enc-actions, .enc-row.reveal-right .enc-actions { opacity: 1; }
-.enc-actions .act { display: flex; align-items: center; padding: 0 18px; font-weight: 700; font-size: 13px; }
-.enc-actions .act-revive { background: var(--good); color: #08210f; }
-.enc-actions .act-remove { background: var(--bad); color: #fff; margin-left: auto; }
-.enc-inst { position: relative; background: var(--panel); padding: 11px 0; border-bottom: 1px solid var(--line); touch-action: pan-y; }
-.enc-inst.swiping { transition: none; user-select: none; }
-.enc-inst:not(.swiping) { transition: transform .18s ease; }
+/* Telegram-Stil: Aktions-Icon am Rand, das beim Wischen erscheint/wächst/einrastet */
+.enc-actions { position: absolute; inset: 0; pointer-events: none; }
+.act-ind { position: absolute; top: 0; bottom: 0; width: 78px; display: flex; align-items: center; justify-content: center; opacity: 0; }
+.act-ind.left { left: 0; }
+.act-ind.right { right: 0; }
+.act-ind .act-ic { display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 50%; font-size: 18px; line-height: 1; transform: scale(.5); transition: background-color .12s, box-shadow .12s; }
+.act-ind.revive .act-ic { background: rgba(40,120,60,.35); color: #d6ffe1; }
+.act-ind.revive.armed .act-ic { background: var(--good); color: #08210f; box-shadow: 0 0 0 5px rgba(60,180,90,.18); }
+.act-ind.remove .act-ic { background: rgba(150,45,45,.35); color: #ffd9d9; }
+.act-ind.remove.armed .act-ic { background: var(--bad); color: #fff; box-shadow: 0 0 0 5px rgba(200,60,60,.18); }
+.enc-inst { position: relative; background: var(--panel); padding: 11px 0; border-bottom: 1px solid var(--line); touch-action: pan-y; will-change: transform; }
+.enc-inst.held { border-left: 3px solid var(--blue); padding-left: 8px; margin-left: -8px; }
 .enc-inst.held { border-left: 3px solid var(--blue); padding-left: 8px; margin-left: -8px; }
 /* Besiegte Zeile abgedunkelt — aber NICHT die Beute-Sektion, sonst sieht die
    Wurf-Eingabe wie deaktiviert aus, obwohl sie aktiv ist. */
